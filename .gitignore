@@ -1,0 +1,48 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+artifacts/
+*.nupkg
+project.lock.json
+
+## Visual Studio
+.vs/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+
+## Rider / VS Code
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+## Node / Angular
+node_modules/
+dist/
+.angular/
+coverage/
+npm-debug.log*
+.npm
+
+## Environment and secrets
+.env
+.env.*
+**/appsettings.*.local.json
+secrets.json
+
+## SQL / OS
+*.mdf
+*.ldf
+Thumbs.db
+Desktop.ini
+.DS_Store

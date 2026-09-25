@@ -1,0 +1,37 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/DigitalBanking.BuildingBlocks/DigitalBanking.BuildingBlocks.csproj" />
+  </Folder>
+  <Folder Name="/src/Contracts/">
+    <Project Path="src/Contracts/DigitalBanking.Contracts/DigitalBanking.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/src/Gateways/">
+    <Project Path="src/Gateways/DigitalBanking.Gateway/DigitalBanking.Gateway.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/" />
+  <Folder Name="/src/Services/Account/">
+    <Project Path="src/Services/Account/DigitalBanking.Account.Api/DigitalBanking.Account.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Admin/">
+    <Project Path="src/Services/Admin/DigitalBanking.Admin.Api/DigitalBanking.Admin.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Audit/">
+    <Project Path="src/Services/Audit/DigitalBanking.Audit.Api/DigitalBanking.Audit.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Chat/">
+    <Project Path="src/Services/Chat/DigitalBanking.Chat.Api/DigitalBanking.Chat.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Customer/">
+    <Project Path="src/Services/Customer/DigitalBanking.Customer.Api/DigitalBanking.Customer.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Identity/">
+    <Project Path="src/Services/Identity/DigitalBanking.Identity.Api/DigitalBanking.Identity.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Notification/">
+    <Project Path="src/Services/Notification/DigitalBanking.Notification.Api/DigitalBanking.Notification.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/Transaction/">
+    <Project Path="src/Services/Transaction/DigitalBanking.Transaction.Api/DigitalBanking.Transaction.Api.csproj" />
+  </Folder>
+</Solution>

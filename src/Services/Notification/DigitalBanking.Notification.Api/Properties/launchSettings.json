@@ -1,0 +1,12 @@
+﻿{
+  "profiles": {
+    "DigitalBanking.Notification.Api": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5105",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
