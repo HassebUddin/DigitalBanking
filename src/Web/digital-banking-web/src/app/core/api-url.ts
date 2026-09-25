@@ -9,7 +9,7 @@ export function resolveApiUrl() {
   }
 
   if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
-    return 'http://10.0.2.2:5000';
+    return 'http://192.168.100.27:5000';
   }
 
   return 'http://localhost:5000';

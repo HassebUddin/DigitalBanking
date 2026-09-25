@@ -71,21 +71,29 @@ import { holdSkeleton } from '../ui/hold-skeleton';
         </div>
 
         @if (rejectedApplication(); as application) {
-          <article class="list-card reject-home">
-            <div>
-              <p class="eyebrow">{{ application.accountType }} request</p>
-              <strong>Request rejected</strong>
-              <p>{{ application.reviewNote || 'The bank declined this request. Send a new one from Accounts.' }}</p>
+          <article class="home-notice reject rise">
+            <div class="home-notice-top">
+              <span class="request-ico reject-ico"><app-icon name="close" /></span>
+              <div>
+                <p class="eyebrow">{{ application.accountType }} account</p>
+                <strong>Request declined</strong>
+              </div>
+              <span class="status-pill bad">Rejected</span>
             </div>
-            <a class="home-cta" routerLink="/accounts">Open Accounts</a>
+            <p>{{ application.reviewNote || 'The bank declined this request. You can send a new one from Accounts.' }}</p>
+            <a class="ghost-retry" routerLink="/accounts">Send again</a>
           </article>
         } @else if (pendingApplication(); as application) {
-          <article class="list-card">
-            <div>
-              <p class="eyebrow">{{ application.accountType }} request</p>
-              <strong>In review</strong>
-              <p>Bank is reviewing your documents. This account will appear here after approval.</p>
+          <article class="home-notice wait rise">
+            <div class="home-notice-top">
+              <span class="request-ico"><app-icon name="wallet" /></span>
+              <div>
+                <p class="eyebrow">{{ application.accountType }} account</p>
+                <strong>In review</strong>
+              </div>
+              <span class="status-pill wait">Pending</span>
             </div>
+            <p>Bank is checking your CNIC and signature. This card will go live after approval.</p>
           </article>
         } @else if (accounts().length === 0) {
           <article class="empty-card history-empty rise">
