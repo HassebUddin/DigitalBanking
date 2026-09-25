@@ -75,6 +75,19 @@ import { Component, Input } from '@angular/core';
         @case ('close') {
           <path d="M7 7l10 10M17 7 7 17" />
         }
+        @case ('mail') {
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <path d="m4 8 8 6 8-6" />
+        }
+        @case ('pin') {
+          <path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11z" />
+          <circle cx="12" cy="10" r="2.2" />
+        }
+        @case ('id-card') {
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <circle cx="9" cy="12" r="2" />
+          <path d="M13 11h5M13 14h4" />
+        }
         @case ('phone') {
           <path d="M6.5 3.8c.5-.5 1.4-.4 1.8.2l1.6 2.3c.4.5.3 1.2-.2 1.6l-1 1c.8 1.6 2.2 3 3.8 3.8l1-1c.4-.5 1.1-.6 1.6-.2l2.3 1.6c.6.4.7 1.3.2 1.8l-1.1 1.1c-.6.6-1.5.8-2.3.5-2.2-.8-4.2-2.1-5.8-3.7S5.2 9.3 4.4 7.1c-.3-.8-.1-1.7.5-2.3z" />
         }
@@ -87,11 +100,29 @@ import { Component, Input } from '@angular/core';
           <path d="M6.5 11a5.5 5.5 0 0 0 11 0" />
           <path d="M12 16.5V20" />
         }
+        @case ('play') {
+          <path d="M8 6.5v11L18 12z" fill="currentColor" stroke="none" />
+        }
+        @case ('pause') {
+          <path d="M8 6h3v12H8zM13 6h3v12h-3z" fill="currentColor" stroke="none" />
+        }
+        @case ('trash') {
+          <path d="M5 7h14" />
+          <path d="M9 7V5h6v2" />
+          <path d="M8 7l.8 12h6.4L16 7" />
+        }
         @case ('attach') {
           <path d="M16.5 7.5 8 16a2.8 2.8 0 0 1-4-4l9.2-9.2a3.8 3.8 0 0 1 5.4 5.4L9.3 17.5a2 2 0 1 1-2.8-2.8l8-8" />
         }
         @case ('send-msg') {
           <path d="M4 11.5 20 4 12.8 20l-1.7-6.3z" />
+        }
+        @case ('tick') {
+          <path d="M5 13 9.2 17.2 19 7.2" />
+        }
+        @case ('ticks') {
+          <path d="M3.2 13 7.4 17.2 15.2 9" />
+          <path d="M8.6 13 12.8 17.2 21 8.6" />
         }
       }
     </svg>

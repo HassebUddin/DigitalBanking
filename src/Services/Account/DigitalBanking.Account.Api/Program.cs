@@ -44,6 +44,7 @@ static async Task EnsureApplicationsTableAsync(WebApplication app)
                 AccountType nvarchar(32) NOT NULL,
                 Purpose nvarchar(250) NULL,
                 IdentityDocumentUrl nvarchar(400) NULL,
+                IdentityBackDocumentUrl nvarchar(400) NULL,
                 AddressDocumentUrl nvarchar(400) NULL,
                 SignatureUrl nvarchar(400) NULL,
                 TermsAccepted bit NOT NULL,
@@ -53,6 +54,11 @@ static async Task EnsureApplicationsTableAsync(WebApplication app)
                 CreatedAtUtc datetime2 NOT NULL,
                 ReviewedAtUtc datetime2 NULL
             );
+        END
+
+        IF COL_LENGTH(N'dbo.AccountApplications', N'IdentityBackDocumentUrl') IS NULL
+        BEGIN
+            ALTER TABLE dbo.AccountApplications ADD IdentityBackDocumentUrl nvarchar(400) NULL;
         END
         """);
 }

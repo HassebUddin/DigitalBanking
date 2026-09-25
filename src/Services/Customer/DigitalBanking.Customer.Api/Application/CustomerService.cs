@@ -78,6 +78,21 @@ public sealed class CustomerService(CustomerDbContext dbContext)
         return Map(customer);
     }
 
+    public async Task<CustomerResponse> SetKycStatusAsync(Guid customerId, string status, CancellationToken cancellationToken)
+    {
+        if (status is not ("Verified" or "Pending"))
+        {
+            throw new ValidationException("KYC status is invalid.");
+        }
+
+        var customer = await dbContext.Customers.FirstOrDefaultAsync(item => item.Id == customerId, cancellationToken)
+            ?? throw new NotFoundException("Customer profile was not found.");
+        customer.KycStatus = status;
+        customer.UpdatedAtUtc = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Map(customer);
+    }
+
     public async Task DeleteAsync(Guid customerId, CancellationToken cancellationToken)
     {
         var customer = await dbContext.Customers.FirstOrDefaultAsync(item => item.Id == customerId, cancellationToken)

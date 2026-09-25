@@ -43,7 +43,7 @@ export class BankingService {
     accountType: string;
     purpose: string;
     identityDocument: File;
-    addressDocument: File;
+    identityBackDocument: File;
     signature: File;
   }) {
     const form = new FormData();
@@ -51,7 +51,7 @@ export class BankingService {
     form.append('purpose', payload.purpose);
     form.append('termsAccepted', 'true');
     form.append('identityDocument', payload.identityDocument);
-    form.append('addressDocument', payload.addressDocument);
+    form.append('identityBackDocument', payload.identityBackDocument);
     form.append('signature', payload.signature);
     return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/applications`, form);
   }
@@ -62,6 +62,10 @@ export class BankingService {
 
   rejectAccountApplication(applicationId: string, note = '') {
     return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/applications/${applicationId}/reject`, { note });
+  }
+
+  reopenAccountApplication(applicationId: string) {
+    return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/applications/${applicationId}/reopen`, {});
   }
 
   deposit(accountId: string, amount: number, description: string) {
@@ -133,6 +137,10 @@ export class BankingService {
 
   getAdminAuditLogs() {
     return this.http.get<AuditLog[]>(`${this.apiUrl}/api/admin/audit-logs`);
+  }
+
+  verifyCustomerKyc(customerId: string) {
+    return this.http.post(`${this.apiUrl}/api/admin/customers/${customerId}/kyc`, {});
   }
 
   freezeAccount(accountId: string) {

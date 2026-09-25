@@ -32,6 +32,7 @@ public sealed class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbC
 
         modelBuilder.Entity<ChatMessage>(entity =>
         {
+            entity.ToTable("Messages");
             entity.HasKey(message => message.Id);
             entity.Property(message => message.SenderName).HasMaxLength(200).IsRequired();
             entity.Property(message => message.MessageType).HasMaxLength(32).IsRequired();
@@ -39,6 +40,7 @@ public sealed class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbC
             entity.Property(message => message.FileName).HasMaxLength(260);
             entity.Property(message => message.FileUrl).HasMaxLength(500);
             entity.Property(message => message.ContentType).HasMaxLength(120);
+            entity.Property(message => message.ReceiptStatus).HasMaxLength(16).IsRequired();
             entity.HasOne(message => message.Conversation)
                 .WithMany(conversation => conversation.Messages)
                 .HasForeignKey(message => message.ConversationId);

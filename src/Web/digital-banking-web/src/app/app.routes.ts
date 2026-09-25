@@ -24,6 +24,12 @@ import {
   AdminDashboardPage,
   AdminTransactionsPage
 } from './pages/admin-pages';
+import { DeskHomePage } from './pages/desk-home-page';
+import { DeskPeoplePage } from './pages/desk-people-page';
+import { DeskCardsPage } from './pages/desk-cards-page';
+import { DeskHistoryPage } from './pages/desk-history-page';
+import { DeskAlertsPage } from './pages/desk-alerts-page';
+import { DeskKycPage } from './pages/desk-kyc-page';
 
 export const routes: Routes = [
   {
@@ -71,7 +77,15 @@ export const routes: Routes = [
     path: 'desk',
     component: EmployeeShell,
     canActivate: [authGuard, employeeGuard],
-    children: [{ path: '', component: ChatPage }]
+    children: [
+      { path: '', component: DeskHomePage },
+      { path: 'customers', component: DeskPeoplePage },
+      { path: 'accounts', component: DeskCardsPage },
+      { path: 'transactions', component: DeskHistoryPage },
+      { path: 'alerts', component: DeskAlertsPage },
+      { path: 'kyc', component: DeskKycPage },
+      { path: 'chat', component: ChatPage }
+    ]
   },
   { path: '**', redirectTo: 'login' }
 ];

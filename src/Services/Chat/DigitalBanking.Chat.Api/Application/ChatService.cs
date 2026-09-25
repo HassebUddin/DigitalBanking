@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DigitalBanking.Chat.Api.Application;
 
-public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directoryClient)
+public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directoryClient, PresenceTracker presenceTracker)
 {
     public Task<IReadOnlyList<DirectoryUserResponse>> GetDirectoryAsync(string accessToken, CancellationToken cancellationToken)
     {
@@ -115,7 +115,7 @@ public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directo
         return conversations.Select(conversation => MapConversation(conversation, userId)).ToList();
     }
 
-    public async Task<IReadOnlyList<MessageResponse>> ListMessagesAsync(Guid userId, Guid conversationId, CancellationToken cancellationToken)
+    public async Task<OpenMessagesResult> ListMessagesAsync(Guid userId, Guid conversationId, CancellationToken cancellationToken)
     {
         var conversation = await GetMembershipAsync(conversationId, userId, cancellationToken);
         var messages = await dbContext.Messages
@@ -124,10 +124,56 @@ public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directo
             .Take(300)
             .ToListAsync(cancellationToken);
 
-        var member = conversation.Members.First(item => item.UserId == userId);
-        member.LastReadAtUtc = DateTime.UtcNow;
+        HydrateOutgoingReceipts(conversation, userId, messages);
+        var receipts = MarkMessagesRead(conversation, userId, messages);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return messages.Select(MapMessage).ToList();
+        return new OpenMessagesResult
+        {
+            Messages = messages.Select(MapMessage).ToList(),
+            Receipts = receipts
+        };
+    }
+
+    public async Task<IReadOnlyList<MessageReceiptNotification>> MarkIncomingDeliveredAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var conversationIds = await dbContext.Members
+            .Where(member => member.UserId == userId)
+            .Select(member => member.ConversationId)
+            .ToListAsync(cancellationToken);
+
+        var messages = await dbContext.Messages
+            .Where(message =>
+                conversationIds.Contains(message.ConversationId) &&
+                message.SenderUserId != userId &&
+                message.ReceiptStatus == ReceiptStatuses.Sent)
+            .ToListAsync(cancellationToken);
+
+        foreach (var message in messages)
+        {
+            message.ReceiptStatus = ReceiptStatuses.Delivered;
+        }
+
+        if (messages.Count > 0)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return messages.Select(MapReceipt).ToList();
+    }
+
+    public async Task<IReadOnlyList<MessageReceiptNotification>> MarkConversationReadAsync(Guid userId, Guid conversationId, CancellationToken cancellationToken)
+    {
+        var conversation = await GetMembershipAsync(conversationId, userId, cancellationToken);
+        var messages = await dbContext.Messages
+            .Where(message =>
+                message.ConversationId == conversationId &&
+                message.SenderUserId != userId &&
+                message.ReceiptStatus != ReceiptStatuses.Read)
+            .ToListAsync(cancellationToken);
+
+        var receipts = MarkMessagesRead(conversation, userId, messages);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return receipts;
     }
 
     public async Task<MessageResponse> SendTextAsync(Guid userId, string fullName, Guid conversationId, string body, CancellationToken cancellationToken)
@@ -198,7 +244,8 @@ public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directo
         int? durationSeconds,
         CancellationToken cancellationToken)
     {
-        await GetMembershipAsync(conversationId, userId, cancellationToken);
+        var conversation = await GetMembershipAsync(conversationId, userId, cancellationToken);
+        var othersOnline = conversation.Members.Any(member => member.UserId != userId && presenceTracker.IsOnline(member.UserId));
         var message = new ChatMessage
         {
             Id = Guid.NewGuid(),
@@ -211,6 +258,7 @@ public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directo
             FileUrl = fileUrl,
             ContentType = contentType,
             DurationSeconds = durationSeconds,
+            ReceiptStatus = othersOnline ? ReceiptStatuses.Delivered : ReceiptStatuses.Sent,
             CreatedAtUtc = DateTime.UtcNow
         };
         dbContext.Messages.Add(message);
@@ -231,6 +279,14 @@ public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directo
         }
 
         return conversation;
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetMemberUserIdsAsync(Guid conversationId, CancellationToken cancellationToken)
+    {
+        return await dbContext.Members
+            .Where(member => member.ConversationId == conversationId)
+            .Select(member => member.UserId)
+            .ToListAsync(cancellationToken);
     }
 
     private static ChatConversation CreateConversation(string type, string title, Guid createdByUserId)
@@ -280,8 +336,13 @@ public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directo
             ConversationType = conversation.ConversationType,
             CreatedAtUtc = conversation.CreatedAtUtc,
             LastMessage = lastMessage?.Body ?? string.Empty,
+            LastMessageId = lastMessage?.Id,
+            LastMessageSenderUserId = lastMessage?.SenderUserId,
+            LastMessageReceiptStatus = lastMessage?.ReceiptStatus,
             LastMessageAtUtc = lastMessage?.CreatedAtUtc,
-            UnreadCount = conversation.Messages.Count(message => member?.LastReadAtUtc is null || message.CreatedAtUtc > member.LastReadAtUtc),
+            UnreadCount = conversation.Messages.Count(message =>
+                message.SenderUserId != userId &&
+                (member?.LastReadAtUtc is null || message.CreatedAtUtc > member.LastReadAtUtc)),
             Members = conversation.Members.Select(item => new MemberResponse
             {
                 UserId = item.UserId,
@@ -305,7 +366,50 @@ public sealed class ChatService(ChatDbContext dbContext, DirectoryClient directo
             FileUrl = message.FileUrl,
             ContentType = message.ContentType,
             DurationSeconds = message.DurationSeconds,
+            ReceiptStatus = message.ReceiptStatus,
             CreatedAtUtc = message.CreatedAtUtc
+        };
+    }
+
+    private void HydrateOutgoingReceipts(ChatConversation conversation, Guid userId, IEnumerable<ChatMessage> messages)
+    {
+        var others = conversation.Members.Where(member => member.UserId != userId).ToList();
+        foreach (var message in messages.Where(item => item.SenderUserId == userId && item.ReceiptStatus != ReceiptStatuses.Read))
+        {
+            if (others.Any(member => member.LastReadAtUtc is DateTime readAt && readAt >= message.CreatedAtUtc))
+            {
+                message.ReceiptStatus = ReceiptStatuses.Read;
+            }
+            else if (message.ReceiptStatus == ReceiptStatuses.Sent && others.Any(member => presenceTracker.IsOnline(member.UserId)))
+            {
+                message.ReceiptStatus = ReceiptStatuses.Delivered;
+            }
+        }
+    }
+
+    private static List<MessageReceiptNotification> MarkMessagesRead(ChatConversation conversation, Guid userId, IEnumerable<ChatMessage> messages)
+    {
+        var member = conversation.Members.First(item => item.UserId == userId);
+        member.LastReadAtUtc = DateTime.UtcNow;
+
+        var receipts = new List<MessageReceiptNotification>();
+        foreach (var message in messages.Where(item => item.SenderUserId != userId && item.ReceiptStatus != ReceiptStatuses.Read))
+        {
+            message.ReceiptStatus = ReceiptStatuses.Read;
+            receipts.Add(MapReceipt(message));
+        }
+
+        return receipts;
+    }
+
+    private static MessageReceiptNotification MapReceipt(ChatMessage message)
+    {
+        return new MessageReceiptNotification
+        {
+            ConversationId = message.ConversationId,
+            MessageId = message.Id,
+            SenderUserId = message.SenderUserId,
+            ReceiptStatus = message.ReceiptStatus
         };
     }
 

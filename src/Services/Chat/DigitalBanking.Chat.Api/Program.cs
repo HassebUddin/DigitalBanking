@@ -37,4 +37,27 @@ app.UseStaticFiles();
 app.UseBankingServicePipeline();
 app.MapHub<ChatHub>("/hubs/chat");
 await app.EnsureDatabaseCreatedAsync<ChatDbContext>();
+await EnsureReceiptColumnAsync(app);
 app.Run();
+
+static async Task EnsureReceiptColumnAsync(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<ChatDbContext>();
+    await dbContext.Database.ExecuteSqlRawAsync(
+        """
+        IF COL_LENGTH(N'dbo.Messages', N'ReceiptStatus') IS NULL
+           AND OBJECT_ID(N'dbo.Messages', N'U') IS NOT NULL
+        BEGIN
+            ALTER TABLE dbo.Messages ADD ReceiptStatus nvarchar(16) NOT NULL
+                CONSTRAINT DF_Messages_ReceiptStatus DEFAULT N'Sent';
+        END
+
+        IF COL_LENGTH(N'dbo.ChatMessage', N'ReceiptStatus') IS NULL
+           AND OBJECT_ID(N'dbo.ChatMessage', N'U') IS NOT NULL
+        BEGIN
+            ALTER TABLE dbo.ChatMessage ADD ReceiptStatus nvarchar(16) NOT NULL
+                CONSTRAINT DF_ChatMessage_ReceiptStatus DEFAULT N'Sent';
+        END
+        """);
+}

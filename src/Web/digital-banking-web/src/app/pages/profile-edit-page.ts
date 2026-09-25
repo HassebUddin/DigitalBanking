@@ -5,15 +5,18 @@ import { AuthService } from '../core/auth.service';
 import { BankingService } from '../core/banking.service';
 import { readErrorMessage } from '../core/http-error';
 import { readProfilePhoto, saveProfilePhoto } from '../core/profile-photo';
+import { AppIcon } from '../ui/icon';
 
 @Component({
   selector: 'app-profile-edit-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, AppIcon],
   template: `
     <section class="page">
-      <div class="page-head split-head">
+      <div class="page-head split-head desk-head">
+        <a class="desk-back" routerLink="/profile" aria-label="Back">
+          <app-icon name="back" />
+        </a>
         <div>
-          <a class="back-link" routerLink="/profile">‹ More</a>
           <h1>My profile</h1>
         </div>
       </div>

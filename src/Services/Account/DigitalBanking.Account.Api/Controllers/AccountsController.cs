@@ -33,9 +33,10 @@ public sealed class AccountsController(
         [FromForm] string accountType,
         [FromForm] string purpose,
         [FromForm] bool termsAccepted,
-        [FromForm] IFormFile identityDocument,
-        [FromForm] IFormFile addressDocument,
-        [FromForm] IFormFile signature,
+        [FromForm] IFormFile? identityDocument,
+        [FromForm] IFormFile? identityBackDocument,
+        [FromForm] IFormFile? addressDocument,
+        [FromForm] IFormFile? signature,
         [FromServices] AccountFileStore fileStore,
         CancellationToken cancellationToken)
     {
@@ -47,6 +48,7 @@ public sealed class AccountsController(
             accountType,
             purpose,
             identityDocument,
+            identityBackDocument,
             addressDocument,
             signature,
             termsAccepted,
@@ -58,35 +60,42 @@ public sealed class AccountsController(
     [HttpGet("applications")]
     public async Task<ActionResult<IReadOnlyList<AccountApplicationResponse>>> Applications(CancellationToken cancellationToken)
     {
-        return Ok(await accountService.ListApplicationsAsync(currentUser.UserId, currentUser.IsAdmin, cancellationToken));
+        return Ok(await accountService.ListApplicationsAsync(currentUser.UserId, currentUser.CanViewBankRecords, cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,InternalEmployee")]
     [HttpPost("applications/{applicationId:guid}/approve")]
     public async Task<ActionResult<AccountApplicationResponse>> Approve(Guid applicationId, [FromBody] ReviewApplicationRequest? request, CancellationToken cancellationToken)
     {
         return Ok(await accountService.ApproveApplicationAsync(applicationId, request?.Note ?? string.Empty, cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,InternalEmployee")]
     [HttpPost("applications/{applicationId:guid}/reject")]
     public async Task<ActionResult<AccountApplicationResponse>> Reject(Guid applicationId, [FromBody] ReviewApplicationRequest? request, CancellationToken cancellationToken)
     {
         return Ok(await accountService.RejectApplicationAsync(applicationId, request?.Note ?? string.Empty, cancellationToken));
     }
 
+    [Authorize(Roles = "Admin,InternalEmployee")]
+    [HttpPost("applications/{applicationId:guid}/reopen")]
+    public async Task<ActionResult<AccountApplicationResponse>> Reopen(Guid applicationId, CancellationToken cancellationToken)
+    {
+        return Ok(await accountService.ReopenApplicationAsync(applicationId, cancellationToken));
+    }
+
     [Authorize]
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<AccountResponse>>> List(CancellationToken cancellationToken)
     {
-        return Ok(await accountService.ListForUserAsync(currentUser.UserId, currentUser.IsAdmin, cancellationToken));
+        return Ok(await accountService.ListForUserAsync(currentUser.UserId, currentUser.CanViewBankRecords, cancellationToken));
     }
 
     [Authorize]
     [HttpGet("{accountId:guid}")]
     public async Task<ActionResult<AccountResponse>> Get(Guid accountId, CancellationToken cancellationToken)
     {
-        return Ok(await accountService.GetAsync(accountId, currentUser.UserId, currentUser.IsAdmin, cancellationToken));
+        return Ok(await accountService.GetAsync(accountId, currentUser.UserId, currentUser.CanViewBankRecords, cancellationToken));
     }
 
     [Authorize(Roles = "Admin")]

@@ -3,16 +3,21 @@ import { FormsModule } from '@angular/forms';
 import { BankingService } from '../core/banking.service';
 import { BankAccount } from '../core/models';
 import { readErrorMessage } from '../core/http-error';
+import { ListSkeleton } from '../ui/list-skeleton';
+import { holdSkeleton } from '../ui/hold-skeleton';
 
 @Component({
   selector: 'app-transfer-page',
-  imports: [FormsModule],
+  imports: [FormsModule, ListSkeleton],
   template: `
     <section class="page">
       <div class="page-head">
         <p class="eyebrow">Payments</p>
         <h1>Send money</h1>
       </div>
+      @if (loading()) {
+        <app-list-skeleton [count]="2" />
+      } @else {
       <form class="form-card" (ngSubmit)="submit()">
         <label>
           From account
@@ -30,6 +35,7 @@ import { readErrorMessage } from '../core/http-error';
         @if (success()) { <p class="success">{{ success() }}</p> }
         <button type="submit">Confirm transfer</button>
       </form>
+      }
     </section>
   `
 })
@@ -41,11 +47,26 @@ export class TransferPage implements OnInit {
   description = 'Funds transfer';
   error = signal('');
   success = signal('');
+  loading = signal(true);
+  private loadStartedAt = Date.now();
 
   constructor(private readonly bankingService: BankingService) {}
 
   ngOnInit() {
-    this.bankingService.getAccounts().subscribe((accounts) => this.accounts.set(accounts));
+    this.bankingService.getAccounts().subscribe({
+      next: (accounts) => {
+        holdSkeleton(this.loadStartedAt, () => {
+          this.accounts.set(accounts);
+          this.loading.set(false);
+        });
+      },
+      error: () => {
+        holdSkeleton(this.loadStartedAt, () => {
+          this.accounts.set([]);
+          this.loading.set(false);
+        });
+      }
+    });
   }
 
   submit() {

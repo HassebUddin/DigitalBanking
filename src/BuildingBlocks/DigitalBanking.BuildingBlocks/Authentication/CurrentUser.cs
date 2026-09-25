@@ -51,6 +51,10 @@ public sealed class CurrentUser(IHttpContextAccessor httpContextAccessor)
 
     public bool IsAdmin => string.Equals(Role, "Admin", StringComparison.OrdinalIgnoreCase);
 
+    public bool CanViewBankRecords => IsStaff;
+
+    public bool CanReviewApplications => Role is "Admin" or "InternalEmployee";
+
     private string? FindClaim(string claimType)
     {
         return httpContextAccessor.HttpContext?.User.FindFirstValue(claimType);

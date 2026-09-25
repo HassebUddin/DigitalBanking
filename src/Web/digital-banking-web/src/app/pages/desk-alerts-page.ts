@@ -8,16 +8,16 @@ import { ListSkeleton } from '../ui/list-skeleton';
 import { holdSkeleton } from '../ui/hold-skeleton';
 
 @Component({
-  selector: 'app-notifications-page',
+  selector: 'app-desk-alerts-page',
   imports: [RouterLink, AppIcon, AppModal, ListSkeleton],
   template: `
-    <section class="page">
-      <div class="page-head split-head desk-head">
-        <a class="desk-back" routerLink="/profile" aria-label="Back">
+    <section class="page desk-page">
+      <div class="page-head desk-head">
+        <a class="desk-back" routerLink="/desk" aria-label="Back">
           <app-icon name="back" />
         </a>
         <div>
-          <h1>Notifications</h1>
+          <h1>Alerts</h1>
         </div>
         @if (notifications().length) {
           <button class="icon-btn dark" type="button" (click)="markAllRead()">Read all</button>
@@ -27,32 +27,33 @@ import { holdSkeleton } from '../ui/hold-skeleton';
       @if (loading()) {
         <app-list-skeleton />
       } @else if (!notifications().length) {
-        <div class="empty-card">
+        <article class="empty-card history-empty">
+          <span class="empty-ico"><app-icon name="bell" /></span>
           <strong>No alerts yet</strong>
-          <p>Transfers, deposits and support updates will show here.</p>
-        </div>
-      } @else {
-        @for (notification of notifications(); track notification.id) {
-          <button class="wa-row notice-row" [class.unread]="!notification.isRead" type="button" (click)="openNotice(notification)">
-            <span class="wa-avatar" [class.support]="!notification.isRead">{{ notification.title.charAt(0) }}</span>
-            <div class="wa-copy">
-              <div class="wa-top">
-                <strong>{{ notification.title }}</strong>
-                <small>{{ shortTime(notification.createdAtUtc) }}</small>
-              </div>
-              <p>{{ preview(notification.body) }}</p>
+          <p>Account requests, deposits and support updates will show here.</p>
+        </article>
+      }
+
+      @for (notification of notifications(); track notification.id) {
+        <button class="person-row" [class.unread]="!notification.isRead" type="button" (click)="openNotice(notification)">
+          <span class="wa-avatar" [class.support]="!notification.isRead">{{ notification.title.charAt(0) }}</span>
+          <div class="wa-copy">
+            <div class="wa-top">
+              <strong>{{ notification.title }}</strong>
+              <small>{{ shortTime(notification.createdAtUtc) }}</small>
             </div>
-          </button>
-        }
+            <p>{{ preview(notification.body) }}</p>
+          </div>
+        </button>
       }
     </section>
 
-    <app-modal [open]="!!selected()" title="Notification" (close)="selected.set(null)">
+    <app-modal [open]="!!selected()" title="Alert" (close)="selected.set(null)">
       @if (selected(); as notice) {
         <div class="notice-detail">
           <span class="wa-avatar lg">{{ notice.title.charAt(0) }}</span>
           <strong>{{ notice.title }}</strong>
-          <p class="notice-when">{{ fullTime(notice.createdAtUtc) }}</p>
+          <p class="notice-when">{{ shortTime(notice.createdAtUtc) }}</p>
           <p class="notice-body">{{ notice.body }}</p>
           <button type="button" (click)="selected.set(null)">Close</button>
         </div>
@@ -60,7 +61,7 @@ import { holdSkeleton } from '../ui/hold-skeleton';
     </app-modal>
   `
 })
-export class NotificationsPage implements OnInit {
+export class DeskAlertsPage implements OnInit {
   notifications = signal<UserNotification[]>([]);
   selected = signal<UserNotification | null>(null);
   loading = signal(true);
@@ -74,17 +75,6 @@ export class NotificationsPage implements OnInit {
 
   shortTime(value: string) {
     return new Date(value).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-  }
-
-  fullTime(value: string) {
-    return new Date(value).toLocaleString([], {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   }
 
   preview(body: string) {

@@ -27,8 +27,13 @@ export interface AccountApplication {
   status: string;
   reviewNote: string;
   hasIdentityDocument: boolean;
+  hasIdentityBackDocument: boolean;
   hasAddressDocument: boolean;
   hasSignature: boolean;
+  identityDocumentUrl?: string;
+  identityBackDocumentUrl?: string;
+  addressDocumentUrl?: string;
+  signatureUrl?: string;
   createdAccountId?: string;
   createdAtUtc: string;
 }

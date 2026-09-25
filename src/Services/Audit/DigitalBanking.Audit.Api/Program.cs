@@ -15,6 +15,8 @@ builder.Services.AddEventHandler<AuditEventHandler<CustomerRegisteredEvent>>(nam
 builder.Services.AddEventHandler<AuditEventHandler<UserLoggedInEvent>>(nameof(UserLoggedInEvent));
 builder.Services.AddEventHandler<AuditEventHandler<PasswordChangedEvent>>(nameof(PasswordChangedEvent));
 builder.Services.AddEventHandler<AuditEventHandler<AccountCreatedEvent>>(nameof(AccountCreatedEvent));
+builder.Services.AddEventHandler<AuditEventHandler<AccountApplicationRejectedEvent>>(nameof(AccountApplicationRejectedEvent));
+builder.Services.AddEventHandler<AuditEventHandler<AccountApplicationReopenedEvent>>(nameof(AccountApplicationReopenedEvent));
 builder.Services.AddEventHandler<AuditEventHandler<MoneyDepositedEvent>>(nameof(MoneyDepositedEvent));
 builder.Services.AddEventHandler<AuditEventHandler<MoneyWithdrawnEvent>>(nameof(MoneyWithdrawnEvent));
 builder.Services.AddEventHandler<AuditEventHandler<MoneyTransferredEvent>>(nameof(MoneyTransferredEvent));

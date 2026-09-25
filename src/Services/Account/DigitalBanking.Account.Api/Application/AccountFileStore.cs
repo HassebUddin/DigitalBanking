@@ -8,7 +8,16 @@ public sealed class AccountFileStore(IWebHostEnvironment environment)
     {
         if (file is null || file.Length <= 0 || file.Length > 8 * 1024 * 1024)
         {
-            throw new ValidationException("Each document must be between 1 byte and 8 MB.");
+            throw new ValidationException("Each photo must be between 1 byte and 8 MB.");
+        }
+
+        var type = (file.ContentType ?? string.Empty).ToLowerInvariant();
+        var extension = Path.GetExtension(file.FileName);
+        var isImage = type.StartsWith("image/")
+            || extension is ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif" or ".bmp" or ".heic" or ".heif";
+        if (!isImage || extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ValidationException("Upload a JPG or PNG photo, not a PDF.");
         }
 
         var uploadsFolder = Path.Combine(environment.WebRootPath ?? Path.Combine(environment.ContentRootPath, "wwwroot"), "uploads", folder);

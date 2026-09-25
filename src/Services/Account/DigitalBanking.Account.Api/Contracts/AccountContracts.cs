@@ -20,8 +20,13 @@ public sealed class AccountApplicationResponse
     public string Status { get; set; } = string.Empty;
     public string ReviewNote { get; set; } = string.Empty;
     public bool HasIdentityDocument { get; set; }
+    public bool HasIdentityBackDocument { get; set; }
     public bool HasAddressDocument { get; set; }
     public bool HasSignature { get; set; }
+    public string? IdentityDocumentUrl { get; set; }
+    public string? IdentityBackDocumentUrl { get; set; }
+    public string? AddressDocumentUrl { get; set; }
+    public string? SignatureUrl { get; set; }
     public Guid? CreatedAccountId { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }

@@ -2,7 +2,26 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 export function readErrorMessage(error: unknown, fallback = 'Something went wrong.') {
   if (error instanceof HttpErrorResponse) {
-    return error.error?.message || fallback;
+    if (error.status === 0) {
+      return 'Cannot reach the bank. Check your connection.';
+    }
+    if (error.status === 401) {
+      return 'Session expired. Sign in again and retry.';
+    }
+
+    const body = error.error;
+    if (typeof body === 'string' && body.trim()) {
+      try {
+        const parsed = JSON.parse(body) as { message?: string; detail?: string; title?: string };
+        return parsed.message || parsed.detail || parsed.title || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    if (body && typeof body === 'object') {
+      return body.message || body.detail || body.title || fallback;
+    }
   }
 
   return fallback;

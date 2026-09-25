@@ -26,6 +26,9 @@ public sealed class ConversationResponse
     public string ConversationType { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
     public string LastMessage { get; set; } = string.Empty;
+    public Guid? LastMessageId { get; set; }
+    public Guid? LastMessageSenderUserId { get; set; }
+    public string? LastMessageReceiptStatus { get; set; }
     public DateTime? LastMessageAtUtc { get; set; }
     public int UnreadCount { get; set; }
     public List<MemberResponse> Members { get; set; } = [];
@@ -50,7 +53,22 @@ public sealed class MessageResponse
     public string? FileUrl { get; set; }
     public string? ContentType { get; set; }
     public int? DurationSeconds { get; set; }
+    public string ReceiptStatus { get; set; } = "Sent";
     public DateTime CreatedAtUtc { get; set; }
+}
+
+public sealed class MessageReceiptNotification
+{
+    public Guid ConversationId { get; set; }
+    public Guid MessageId { get; set; }
+    public Guid SenderUserId { get; set; }
+    public string ReceiptStatus { get; set; } = string.Empty;
+}
+
+public sealed class OpenMessagesResult
+{
+    public IReadOnlyList<MessageResponse> Messages { get; set; } = [];
+    public IReadOnlyList<MessageReceiptNotification> Receipts { get; set; } = [];
 }
 
 public sealed class CallResponse

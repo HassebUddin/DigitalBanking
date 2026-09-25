@@ -24,6 +24,7 @@ public sealed class ChatHub(ChatService chatService, PresenceTracker presenceTra
         }
 
         await Clients.Caller.SendAsync("OnlineUsers", presenceTracker.OnlineUserIds());
+        await BroadcastReceiptsAsync(await chatService.MarkIncomingDeliveredAsync(currentUser.UserId, Context.ConnectionAborted));
         await base.OnConnectedAsync();
     }
 
@@ -45,12 +46,18 @@ public sealed class ChatHub(ChatService chatService, PresenceTracker presenceTra
     public async Task JoinConversation(Guid conversationId)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, ConversationGroup(conversationId));
+        await BroadcastReceiptsAsync(await chatService.MarkConversationReadAsync(currentUser.UserId, conversationId, Context.ConnectionAborted));
+    }
+
+    public async Task AcknowledgeRead(Guid conversationId)
+    {
+        await BroadcastReceiptsAsync(await chatService.MarkConversationReadAsync(currentUser.UserId, conversationId, Context.ConnectionAborted));
     }
 
     public async Task SendText(Guid conversationId, string body)
     {
         var message = await chatService.SendTextAsync(currentUser.UserId, currentUser.FullName, conversationId, body, Context.ConnectionAborted);
-        await Clients.Group(ConversationGroup(conversationId)).SendAsync("MessageReceived", message);
+        await BroadcastMessageAsync(conversationId, message);
     }
 
     public async Task NotifyTyping(Guid conversationId)
@@ -103,6 +110,28 @@ public sealed class ChatHub(ChatService chatService, PresenceTracker presenceTra
     {
         var call = await chatService.GetCallAsync(callId, currentUser.UserId, Context.ConnectionAborted);
         await Clients.OthersInGroup(ConversationGroup(call.ConversationId)).SendAsync("CallIceCandidate", new { callId, candidate, fromUserId = currentUser.UserId });
+    }
+
+    private async Task BroadcastMessageAsync(Guid conversationId, MessageResponse message)
+    {
+        await Clients.Group(ConversationGroup(conversationId)).SendAsync("MessageReceived", message);
+        foreach (var userId in await chatService.GetMemberUserIdsAsync(conversationId, Context.ConnectionAborted))
+        {
+            await Clients.Group(UserGroup(userId)).SendAsync("MessageReceived", message);
+        }
+    }
+
+    private async Task BroadcastReceiptsAsync(IReadOnlyList<MessageReceiptNotification> receipts)
+    {
+        foreach (var group in receipts.GroupBy(receipt => receipt.ConversationId))
+        {
+            await Clients.Group(ConversationGroup(group.Key)).SendAsync("MessageReceipts", group.ToList());
+        }
+
+        foreach (var senderUserId in receipts.Select(receipt => receipt.SenderUserId).Distinct())
+        {
+            await Clients.Group(UserGroup(senderUserId)).SendAsync("MessageReceipts", receipts.Where(receipt => receipt.SenderUserId == senderUserId).ToList());
+        }
     }
 
     private static string ConversationGroup(Guid conversationId) => $"conversation:{conversationId}";

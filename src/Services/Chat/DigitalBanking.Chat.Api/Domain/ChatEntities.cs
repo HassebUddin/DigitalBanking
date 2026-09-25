@@ -25,6 +25,13 @@ public static class CallStatuses
     public const string Declined = "Declined";
 }
 
+public static class ReceiptStatuses
+{
+    public const string Sent = "Sent";
+    public const string Delivered = "Delivered";
+    public const string Read = "Read";
+}
+
 public sealed class ChatConversation
 {
     public Guid Id { get; set; }
@@ -60,6 +67,7 @@ public sealed class ChatMessage
     public string? FileUrl { get; set; }
     public string? ContentType { get; set; }
     public int? DurationSeconds { get; set; }
+    public string ReceiptStatus { get; set; } = ReceiptStatuses.Sent;
     public DateTime CreatedAtUtc { get; set; }
     public ChatConversation Conversation { get; set; } = null!;
 }

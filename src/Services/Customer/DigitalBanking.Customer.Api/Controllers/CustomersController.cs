@@ -24,7 +24,7 @@ public sealed class CustomersController(CustomerService customerService, Current
         return Ok(await customerService.UpdateAsync(currentUser.UserId, currentUser.Email, request, cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,InternalEmployee,ExternalEmployee")]
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CustomerResponse>>> List(CancellationToken cancellationToken)
     {
@@ -35,12 +35,19 @@ public sealed class CustomersController(CustomerService customerService, Current
     public async Task<ActionResult<CustomerResponse>> GetById(Guid customerId, CancellationToken cancellationToken)
     {
         var customer = await customerService.GetByIdAsync(customerId, cancellationToken);
-        if (!currentUser.IsAdmin && customer.UserId != currentUser.UserId)
+        if (!currentUser.CanViewBankRecords && customer.UserId != currentUser.UserId)
         {
             throw new ForbiddenException("You cannot view another customer's profile.");
         }
 
         return Ok(customer);
+    }
+
+    [Authorize(Roles = "Admin,InternalEmployee")]
+    [HttpPost("{customerId:guid}/kyc")]
+    public async Task<ActionResult<CustomerResponse>> VerifyKyc(Guid customerId, CancellationToken cancellationToken)
+    {
+        return Ok(await customerService.SetKycStatusAsync(customerId, "Verified", cancellationToken));
     }
 
     [Authorize(Roles = "Admin")]

@@ -101,16 +101,17 @@ public sealed class AccountService(AccountDbContext dbContext, ICacheService cac
         Guid customerId,
         string accountType,
         string purpose,
-        IFormFile identityDocument,
-        IFormFile addressDocument,
-        IFormFile signature,
+        IFormFile? identityDocument,
+        IFormFile? identityBackDocument,
+        IFormFile? addressDocument,
+        IFormFile? signature,
         bool termsAccepted,
         AccountFileStore fileStore,
         CancellationToken cancellationToken)
     {
-        if (identityDocument is null || addressDocument is null || signature is null)
+        if (identityDocument is null || identityBackDocument is null || signature is null)
         {
-            throw new ValidationException("CNIC, address proof and signature are required.");
+            throw new ValidationException("CNIC front, CNIC back and signature are required.");
         }
 
         if (!termsAccepted)
@@ -138,7 +139,10 @@ public sealed class AccountService(AccountDbContext dbContext, ICacheService cac
             AccountType = type,
             Purpose = string.IsNullOrWhiteSpace(purpose) ? "Personal banking" : purpose.Trim(),
             IdentityDocumentUrl = await fileStore.SaveAsync(identityDocument, "identity", cancellationToken),
-            AddressDocumentUrl = await fileStore.SaveAsync(addressDocument, "address", cancellationToken),
+            IdentityBackDocumentUrl = await fileStore.SaveAsync(identityBackDocument, "identity", cancellationToken),
+            AddressDocumentUrl = addressDocument is null
+                ? string.Empty
+                : await fileStore.SaveAsync(addressDocument, "address", cancellationToken),
             SignatureUrl = await fileStore.SaveAsync(signature, "signatures", cancellationToken),
             TermsAccepted = true,
             Status = ApplicationStatuses.Pending,
@@ -165,9 +169,9 @@ public sealed class AccountService(AccountDbContext dbContext, ICacheService cac
     public async Task<AccountApplicationResponse> ApproveApplicationAsync(Guid applicationId, string note, CancellationToken cancellationToken)
     {
         var application = await FindApplicationAsync(applicationId, cancellationToken);
-        if (application.Status != ApplicationStatuses.Pending)
+        if (application.Status is not (ApplicationStatuses.Pending or ApplicationStatuses.Rejected))
         {
-            throw new BusinessRuleException("Only pending requests can be approved.");
+            throw new BusinessRuleException("Only pending or rejected requests can be approved.");
         }
 
         var account = await OpenAccountAsync(application.UserId, application.CustomerId, new OpenAccountRequest { AccountType = application.AccountType }, cancellationToken);
@@ -188,8 +192,36 @@ public sealed class AccountService(AccountDbContext dbContext, ICacheService cac
         }
 
         application.Status = ApplicationStatuses.Rejected;
-        application.ReviewNote = string.IsNullOrWhiteSpace(note) ? "Rejected by bank admin." : note.Trim();
+        application.ReviewNote = string.IsNullOrWhiteSpace(note) ? "Documents need correction." : note.Trim();
         application.ReviewedAtUtc = DateTime.UtcNow;
+        OutboxWriter.AddEvent(dbContext, new AccountApplicationRejectedEvent
+        {
+            ApplicationId = application.Id,
+            UserId = application.UserId,
+            AccountType = application.AccountType,
+            Note = application.ReviewNote
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return MapApplication(application);
+    }
+
+    public async Task<AccountApplicationResponse> ReopenApplicationAsync(Guid applicationId, CancellationToken cancellationToken)
+    {
+        var application = await FindApplicationAsync(applicationId, cancellationToken);
+        if (application.Status != ApplicationStatuses.Rejected)
+        {
+            throw new BusinessRuleException("Only rejected requests can be returned to review.");
+        }
+
+        application.Status = ApplicationStatuses.Pending;
+        application.ReviewNote = "Returned to review by the bank.";
+        application.ReviewedAtUtc = null;
+        OutboxWriter.AddEvent(dbContext, new AccountApplicationReopenedEvent
+        {
+            ApplicationId = application.Id,
+            UserId = application.UserId,
+            AccountType = application.AccountType
+        });
         await dbContext.SaveChangesAsync(cancellationToken);
         return MapApplication(application);
     }
@@ -282,12 +314,17 @@ public sealed class AccountService(AccountDbContext dbContext, ICacheService cac
             Id = application.Id,
             UserId = application.UserId,
             AccountType = application.AccountType,
-            Purpose = application.Purpose,
+            Purpose = application.Purpose ?? string.Empty,
             Status = application.Status,
-            ReviewNote = application.ReviewNote,
+            ReviewNote = application.ReviewNote ?? string.Empty,
             HasIdentityDocument = !string.IsNullOrWhiteSpace(application.IdentityDocumentUrl),
+            HasIdentityBackDocument = !string.IsNullOrWhiteSpace(application.IdentityBackDocumentUrl),
             HasAddressDocument = !string.IsNullOrWhiteSpace(application.AddressDocumentUrl),
             HasSignature = !string.IsNullOrWhiteSpace(application.SignatureUrl),
+            IdentityDocumentUrl = application.IdentityDocumentUrl,
+            IdentityBackDocumentUrl = application.IdentityBackDocumentUrl,
+            AddressDocumentUrl = application.AddressDocumentUrl,
+            SignatureUrl = application.SignatureUrl,
             CreatedAccountId = application.CreatedAccountId,
             CreatedAtUtc = application.CreatedAtUtc
         };

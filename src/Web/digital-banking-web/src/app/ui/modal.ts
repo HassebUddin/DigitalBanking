@@ -6,7 +6,7 @@ import { AppIcon } from './icon';
   imports: [AppIcon],
   template: `
     @if (open) {
-      <div class="modal-backdrop" (click)="close.emit()">
+      <div class="modal-backdrop" [class.elevated]="elevated" (click)="close.emit()">
         <div class="modal-card" (click)="$event.stopPropagation()">
           <header>
             <h2>{{ title }}</h2>
@@ -23,5 +23,6 @@ import { AppIcon } from './icon';
 export class AppModal {
   @Input() open = false;
   @Input() title = '';
+  @Input() elevated = false;
   @Output() close = new EventEmitter<void>();
 }

@@ -7,6 +7,7 @@ import { BankAccount, BankTransaction, Statement } from '../core/models';
 import { formatMoney, readErrorMessage } from '../core/http-error';
 import { AppModal } from '../ui/modal';
 import { AppIcon } from '../ui/icon';
+import { skeletonHoldMs } from '../ui/hold-skeleton';
 
 interface HistoryGroup {
   label: string;
@@ -18,9 +19,11 @@ interface HistoryGroup {
   imports: [FormsModule, RouterLink, AppModal, AppIcon],
   template: `
     <section class="page history-page">
-      <div class="page-head split-head">
+      <div class="page-head split-head desk-head">
+        <a class="desk-back" routerLink="/profile" aria-label="Back">
+          <app-icon name="back" />
+        </a>
         <div>
-          <a class="back-link" routerLink="/profile">‹ More</a>
           <h1>History</h1>
         </div>
         <button class="history-filter-btn" type="button" (click)="filterOpen.set(true)">
@@ -87,7 +90,7 @@ interface HistoryGroup {
         <p class="error">{{ error() }}</p>
       }
 
-      @if (loading() && transactions().length === 0) {
+      @if (loading()) {
         <div class="history-skeletons">
           @for (item of skeletonItems; track item) {
             <article class="skeleton-card">
@@ -314,13 +317,11 @@ export class TransactionsPage implements OnInit, OnDestroy {
       })
       .subscribe({
         next: (transactions) => {
-          this.transactions.set(transactions);
-          this.endLoad();
+          this.endLoad(() => this.transactions.set(transactions));
         },
         error: (error) => {
           this.error.set(readErrorMessage(error, 'Unable to load history.'));
-          this.transactions.set([]);
-          this.endLoad();
+          this.endLoad(() => this.transactions.set([]));
         }
       });
   }
@@ -339,11 +340,12 @@ export class TransactionsPage implements OnInit, OnDestroy {
       .getStatement(this.statementAccountId, new Date(this.fromDate).toISOString(), new Date(this.toDate).toISOString())
       .subscribe({
         next: (statement) => {
-          this.statement.set(statement);
-          this.transactions.set(statement.transactions);
           this.filterOpen.set(false);
           this.statementLoading.set(false);
-          this.endLoad();
+          this.endLoad(() => {
+            this.statement.set(statement);
+            this.transactions.set(statement.transactions);
+          });
         },
         error: (error) => {
           this.modalError.set(readErrorMessage(error, 'Statement could not be loaded.'));
@@ -396,8 +398,11 @@ export class TransactionsPage implements OnInit, OnDestroy {
     this.loadStartedAt = Date.now();
   }
 
-  private endLoad() {
-    const wait = Math.max(0, 380 - (Date.now() - this.loadStartedAt));
-    window.setTimeout(() => this.loading.set(false), wait);
+  private endLoad(reveal?: () => void) {
+    const wait = Math.max(0, skeletonHoldMs - (Date.now() - this.loadStartedAt));
+    window.setTimeout(() => {
+      reveal?.();
+      this.loading.set(false);
+    }, wait);
   }
 }

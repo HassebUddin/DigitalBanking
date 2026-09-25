@@ -51,7 +51,20 @@ public sealed class ChatController(
     [HttpGet("conversations/{conversationId:guid}/messages")]
     public async Task<ActionResult<IReadOnlyList<MessageResponse>>> Messages(Guid conversationId, CancellationToken cancellationToken)
     {
-        return Ok(await chatService.ListMessagesAsync(currentUser.UserId, conversationId, cancellationToken));
+        var opened = await chatService.ListMessagesAsync(currentUser.UserId, conversationId, cancellationToken);
+        if (opened.Receipts.Count > 0)
+        {
+            await hubContext.Clients.Group($"conversation:{conversationId}").SendAsync("MessageReceipts", opened.Receipts, cancellationToken);
+            foreach (var senderUserId in opened.Receipts.Select(receipt => receipt.SenderUserId).Distinct())
+            {
+                await hubContext.Clients.Group($"user:{senderUserId}").SendAsync(
+                    "MessageReceipts",
+                    opened.Receipts.Where(receipt => receipt.SenderUserId == senderUserId).ToList(),
+                    cancellationToken);
+            }
+        }
+
+        return Ok(opened.Messages);
     }
 
     [HttpPost("conversations/{conversationId:guid}/files")]
@@ -59,7 +72,7 @@ public sealed class ChatController(
     {
         var stored = await chatFileStore.SaveAsync(file, "files", cancellationToken);
         var message = await chatService.SendFileAsync(currentUser.UserId, currentUser.FullName, conversationId, stored.fileName, stored.fileUrl, stored.contentType, MessageTypes.File, null, cancellationToken);
-        await hubContext.Clients.Group($"conversation:{conversationId}").SendAsync("MessageReceived", message, cancellationToken);
+        await BroadcastMessageAsync(conversationId, message, cancellationToken);
         return Ok(message);
     }
 
@@ -68,8 +81,17 @@ public sealed class ChatController(
     {
         var stored = await chatFileStore.SaveAsync(file, "voice", cancellationToken);
         var message = await chatService.SendFileAsync(currentUser.UserId, currentUser.FullName, conversationId, stored.fileName, stored.fileUrl, stored.contentType, MessageTypes.Voice, durationSeconds, cancellationToken);
-        await hubContext.Clients.Group($"conversation:{conversationId}").SendAsync("MessageReceived", message, cancellationToken);
+        await BroadcastMessageAsync(conversationId, message, cancellationToken);
         return Ok(message);
+    }
+
+    private async Task BroadcastMessageAsync(Guid conversationId, MessageResponse message, CancellationToken cancellationToken)
+    {
+        await hubContext.Clients.Group($"conversation:{conversationId}").SendAsync("MessageReceived", message, cancellationToken);
+        foreach (var userId in await chatService.GetMemberUserIdsAsync(conversationId, cancellationToken))
+        {
+            await hubContext.Clients.Group($"user:{userId}").SendAsync("MessageReceived", message, cancellationToken);
+        }
     }
 
     private string ReadAccessToken()

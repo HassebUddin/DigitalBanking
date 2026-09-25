@@ -25,6 +25,11 @@ public sealed class AdminGatewayClient(IHttpClientFactory httpClientFactory, ICo
         return GetListAsync<AuditRow>(configuration["ServiceEndpoints:Audit"]!, "/api/audit-logs", accessToken, cancellationToken);
     }
 
+    public async Task VerifyKycAsync(string accessToken, Guid customerId, CancellationToken cancellationToken)
+    {
+        await PostAsync(configuration["ServiceEndpoints:Customer"]!, $"/api/customers/{customerId}/kyc", accessToken, cancellationToken);
+    }
+
     public async Task FreezeAccountAsync(string accessToken, Guid accountId, CancellationToken cancellationToken)
     {
         await PostAsync(configuration["ServiceEndpoints:Account"]!, $"/api/accounts/{accountId}/freeze", accessToken, cancellationToken);
@@ -66,7 +71,9 @@ public sealed class CustomerRow
     public string Email { get; set; } = string.Empty;
     public string NationalId { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
     public string KycStatus { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
 }
 
 public sealed class AccountRow

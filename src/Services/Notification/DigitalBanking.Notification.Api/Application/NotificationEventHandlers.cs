@@ -41,6 +41,33 @@ public abstract class NotificationEventHandler<TEvent>(NotificationDbContext dbC
     }
 }
 
+public sealed class AccountApplicationRejectedNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
+    : NotificationEventHandler<AccountApplicationRejectedEvent>(dbContext, notificationService)
+{
+    protected override void HandleEvent(AccountApplicationRejectedEvent integrationEvent)
+    {
+        var reason = string.IsNullOrWhiteSpace(integrationEvent.Note)
+            ? "Please send a new request with clearer documents."
+            : integrationEvent.Note;
+        Notify(
+            integrationEvent.UserId,
+            "Account request rejected",
+            $"Your {integrationEvent.AccountType} account request was rejected. {reason}");
+    }
+}
+
+public sealed class AccountApplicationReopenedNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
+    : NotificationEventHandler<AccountApplicationReopenedEvent>(dbContext, notificationService)
+{
+    protected override void HandleEvent(AccountApplicationReopenedEvent integrationEvent)
+    {
+        Notify(
+            integrationEvent.UserId,
+            "Account request back in review",
+            $"Your {integrationEvent.AccountType} account request is being reviewed again.");
+    }
+}
+
 public sealed class AccountCreatedNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
     : NotificationEventHandler<AccountCreatedEvent>(dbContext, notificationService)
 {

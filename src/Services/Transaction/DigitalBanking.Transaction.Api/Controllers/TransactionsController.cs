@@ -53,7 +53,7 @@ public sealed class TransactionsController(TransactionService transactionService
             SortDirection = sortDirection
         };
 
-        return Ok(await transactionService.SearchAsync(currentUser.UserId, currentUser.IsAdmin, request, cancellationToken));
+        return Ok(await transactionService.SearchAsync(currentUser.UserId, currentUser.CanViewBankRecords, request, cancellationToken));
     }
 
     [HttpGet("statement/{accountId:guid}")]
@@ -63,6 +63,6 @@ public sealed class TransactionsController(TransactionService transactionService
         [FromQuery] DateTime toDateUtc,
         CancellationToken cancellationToken)
     {
-        return Ok(await transactionService.GetStatementAsync(currentUser.UserId, currentUser.IsAdmin, accountId, fromDateUtc, toDateUtc, cancellationToken));
+        return Ok(await transactionService.GetStatementAsync(currentUser.UserId, currentUser.CanViewBankRecords, accountId, fromDateUtc, toDateUtc, cancellationToken));
     }
 }

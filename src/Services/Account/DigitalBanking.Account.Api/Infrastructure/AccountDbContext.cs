@@ -31,6 +31,7 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
             entity.Property(application => application.AccountType).HasMaxLength(32).IsRequired();
             entity.Property(application => application.Purpose).HasMaxLength(250);
             entity.Property(application => application.IdentityDocumentUrl).HasMaxLength(400);
+            entity.Property(application => application.IdentityBackDocumentUrl).HasMaxLength(400);
             entity.Property(application => application.AddressDocumentUrl).HasMaxLength(400);
             entity.Property(application => application.SignatureUrl).HasMaxLength(400);
             entity.Property(application => application.Status).HasMaxLength(32).IsRequired();

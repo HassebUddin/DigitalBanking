@@ -14,6 +14,8 @@ builder.Services.AddOutboxPublisher<NotificationDbContext>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddEventHandler<CustomerRegisteredNotificationHandler>(nameof(CustomerRegisteredEvent));
 builder.Services.AddEventHandler<AccountCreatedNotificationHandler>(nameof(AccountCreatedEvent));
+builder.Services.AddEventHandler<AccountApplicationRejectedNotificationHandler>(nameof(AccountApplicationRejectedEvent));
+builder.Services.AddEventHandler<AccountApplicationReopenedNotificationHandler>(nameof(AccountApplicationReopenedEvent));
 builder.Services.AddEventHandler<MoneyDepositedNotificationHandler>(nameof(MoneyDepositedEvent));
 builder.Services.AddEventHandler<MoneyWithdrawnNotificationHandler>(nameof(MoneyWithdrawnEvent));
 builder.Services.AddEventHandler<MoneyTransferredNotificationHandler>(nameof(MoneyTransferredEvent));

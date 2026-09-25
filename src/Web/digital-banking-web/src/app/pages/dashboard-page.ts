@@ -6,10 +6,12 @@ import { AccountApplication, BankAccount, BankTransaction, CustomerProfile } fro
 import { formatMoney } from '../core/http-error';
 import { readProfilePhoto } from '../core/profile-photo';
 import { AppIcon } from '../ui/icon';
+import { ListSkeleton } from '../ui/list-skeleton';
+import { holdSkeleton } from '../ui/hold-skeleton';
 
 @Component({
   selector: 'app-dashboard-page',
-  imports: [RouterLink, AppIcon],
+  imports: [RouterLink, AppIcon, ListSkeleton],
   template: `
     <section class="home">
       <header class="home-hero">
@@ -45,6 +47,9 @@ import { AppIcon } from '../ui/icon';
       </header>
 
       <div class="home-sheet">
+        @if (loading()) {
+          <app-list-skeleton [count]="5" [amount]="true" />
+        } @else {
         <article class="debit-card rise delay-1">
           <span class="card-shine"></span>
           <div class="row">
@@ -65,11 +70,20 @@ import { AppIcon } from '../ui/icon';
           <a class="rise delay-5" routerLink="/chat"><span class="action-ico"><app-icon name="support" /></span>Help</a>
         </div>
 
-        @if (pendingApplication(); as application) {
+        @if (rejectedApplication(); as application) {
+          <article class="list-card reject-home">
+            <div>
+              <p class="eyebrow">{{ application.accountType }} request</p>
+              <strong>Request rejected</strong>
+              <p>{{ application.reviewNote || 'The bank declined this request. Send a new one from Accounts.' }}</p>
+            </div>
+            <a class="home-cta" routerLink="/accounts">Open Accounts</a>
+          </article>
+        } @else if (pendingApplication(); as application) {
           <article class="list-card">
             <div>
               <p class="eyebrow">{{ application.accountType }} request</p>
-              <strong>{{ application.status }}</strong>
+              <strong>In review</strong>
               <p>Bank is reviewing your documents. This account will appear here after approval.</p>
             </div>
           </article>
@@ -109,6 +123,7 @@ import { AppIcon } from '../ui/icon';
             </article>
           }
         }
+        }
       </div>
     </section>
   `
@@ -119,6 +134,8 @@ export class DashboardPage implements OnInit {
   recent = signal<BankTransaction[]>([]);
   applications = signal<AccountApplication[]>([]);
   photo = signal('');
+  loading = signal(true);
+  private loadStartedAt = Date.now();
 
   constructor(
     readonly authService: AuthService,
@@ -131,13 +148,30 @@ export class DashboardPage implements OnInit {
       next: (profile) => this.profile.set(profile),
       error: () => this.profile.set(null)
     });
-    this.bankingService.getAccounts().subscribe((accounts) => this.accounts.set(accounts));
+    this.bankingService.getAccounts().subscribe({
+      next: (accounts) => {
+        holdSkeleton(this.loadStartedAt, () => {
+          this.accounts.set(accounts);
+          this.loading.set(false);
+        });
+      },
+      error: () => {
+        holdSkeleton(this.loadStartedAt, () => {
+          this.accounts.set([]);
+          this.loading.set(false);
+        });
+      }
+    });
     this.bankingService.getAccountApplications().subscribe({
-      next: (applications) => this.applications.set(applications),
+      next: (applications) => {
+        holdSkeleton(this.loadStartedAt, () => this.applications.set(applications));
+      },
       error: () => this.applications.set([])
     });
     this.bankingService.searchTransactions({ sortBy: 'createdAt', sortDirection: 'desc' }).subscribe({
-      next: (transactions) => this.recent.set(transactions.slice(0, 4)),
+      next: (transactions) => {
+        holdSkeleton(this.loadStartedAt, () => this.recent.set(transactions.slice(0, 4)));
+      },
       error: () => this.recent.set([])
     });
   }
@@ -148,6 +182,10 @@ export class DashboardPage implements OnInit {
 
   pendingApplication() {
     return this.applications().find((application) => application.status === 'Pending') ?? null;
+  }
+
+  rejectedApplication() {
+    return this.applications().find((application) => application.status === 'Rejected') ?? null;
   }
 
   maskedAccount() {

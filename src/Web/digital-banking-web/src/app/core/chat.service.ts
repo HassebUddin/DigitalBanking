@@ -2,7 +2,8 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import * as signalR from '@microsoft/signalr';
 import { AuthService } from './auth.service';
-import { ChatCall, ChatConversation, ChatMessage, DirectoryUser } from './chat.models';
+import { ChatCall, ChatConversation, ChatMessage, DirectoryUser, IncomingToast, MessageReceipt } from './chat.models';
+import { holdSkeleton } from '../ui/hold-skeleton';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
@@ -16,9 +17,18 @@ export class ChatService {
   readonly offerSdp = signal<string | null>(null);
   readonly answerSdp = signal<string | null>(null);
   readonly iceCandidates = signal<string[]>([]);
+  readonly inboxLoading = signal(false);
+  readonly messagesLoading = signal(false);
+  readonly directoryLoading = signal(false);
+  readonly incomingToast = signal<IncomingToast | null>(null);
+  readonly pendingOpen = signal<ChatConversation | null>(null);
 
   private connection?: signalR.HubConnection;
   private currentConversationId = '';
+  private inboxStartedAt = 0;
+  private messagesStartedAt = 0;
+  private directoryStartedAt = 0;
+  private toastTimer = 0;
 
   constructor(
     private readonly http: HttpClient,
@@ -47,10 +57,17 @@ export class ChatService {
 
     this.connection.on('MessageReceived', (message: ChatMessage) => {
       if (message.conversationId === this.currentConversationId) {
-        this.messages.update((items) => [...items, message]);
+        this.upsertMessage(message);
+        if (message.senderUserId.toLowerCase() !== this.authService.userId().toLowerCase()) {
+          void this.acknowledgeRead(message.conversationId);
+        }
+      }
+      if (message.senderUserId.toLowerCase() !== this.authService.userId().toLowerCase()) {
+        this.showIncomingToast(message);
       }
       this.loadConversations();
     });
+    this.connection.on('MessageReceipts', (receipts: MessageReceipt[]) => this.applyReceipts(receipts));
     this.connection.on('UserTyping', (payload: { conversationId: string; displayName: string }) => {
       if (payload.conversationId === this.currentConversationId) {
         this.typingName.set(payload.displayName);
@@ -84,18 +101,188 @@ export class ChatService {
     await this.connection.start();
   }
 
-  loadDirectory() {
-    this.http.get<DirectoryUser[]>(`${this.apiUrl}/api/chat/directory`).subscribe((users) => this.directory.set(users));
+  loadDirectory(forceHold = false) {
+    const holding = forceHold || this.directoryLoading() || this.directory().length === 0;
+    if (forceHold || this.directory().length === 0) {
+      this.directoryStartedAt = Date.now();
+      this.directoryLoading.set(true);
+      if (forceHold) {
+        this.directory.set([]);
+      }
+    }
+    this.http.get<DirectoryUser[]>(`${this.apiUrl}/api/chat/directory`).subscribe({
+      next: (users) => {
+        if (holding && this.directoryLoading()) {
+          holdSkeleton(this.directoryStartedAt, () => {
+            this.directory.set(users);
+            this.directoryLoading.set(false);
+          });
+          return;
+        }
+        this.directory.set(users);
+      },
+      error: () => {
+        if (holding && this.directoryLoading()) {
+          holdSkeleton(this.directoryStartedAt, () => {
+            this.directory.set([]);
+            this.directoryLoading.set(false);
+          });
+          return;
+        }
+        this.directory.set([]);
+      }
+    });
   }
 
-  loadConversations() {
-    this.http.get<ChatConversation[]>(`${this.apiUrl}/api/chat/conversations`).subscribe((conversations) => this.conversations.set(conversations));
+  loadConversations(forceHold = false) {
+    const holding = forceHold || this.inboxLoading() || this.conversations().length === 0;
+    if (forceHold || this.conversations().length === 0) {
+      this.inboxStartedAt = Date.now();
+      this.inboxLoading.set(true);
+      if (forceHold) {
+        this.conversations.set([]);
+      }
+    }
+    this.http.get<ChatConversation[]>(`${this.apiUrl}/api/chat/conversations`).subscribe({
+      next: (conversations) => {
+        if (holding && this.inboxLoading()) {
+          holdSkeleton(this.inboxStartedAt, () => {
+            this.conversations.set(conversations);
+            this.inboxLoading.set(false);
+          });
+          return;
+        }
+        this.conversations.set(conversations);
+      },
+      error: () => {
+        if (holding && this.inboxLoading()) {
+          holdSkeleton(this.inboxStartedAt, () => {
+            this.conversations.set([]);
+            this.inboxLoading.set(false);
+          });
+          return;
+        }
+        this.conversations.set([]);
+      }
+    });
+  }
+
+  isOnline(userId?: string | null) {
+    if (!userId) {
+      return false;
+    }
+    const id = userId.toLowerCase();
+    return this.onlineUserIds().some((item) => item.toLowerCase() === id);
+  }
+
+  applyReceipts(receipts: MessageReceipt[]) {
+    if (!receipts?.length) {
+      return;
+    }
+
+    this.messages.update((items) =>
+      items.map((message) => {
+        const receipt = receipts.find((item) => item.messageId === message.id);
+        return receipt ? { ...message, receiptStatus: receipt.receiptStatus } : message;
+      })
+    );
+    this.conversations.update((items) =>
+      items.map((conversation) => {
+        const receipt = receipts.find((item) => item.conversationId === conversation.id && item.messageId === conversation.lastMessageId);
+        return receipt ? { ...conversation, lastMessageReceiptStatus: receipt.receiptStatus } : conversation;
+      })
+    );
   }
 
   async openConversation(conversation: ChatConversation) {
     this.currentConversationId = conversation.id;
+    this.messages.set([]);
+    this.messagesStartedAt = Date.now();
+    this.messagesLoading.set(true);
     await this.connection?.invoke('JoinConversation', conversation.id);
-    this.http.get<ChatMessage[]>(`${this.apiUrl}/api/chat/conversations/${conversation.id}/messages`).subscribe((messages) => this.messages.set(messages));
+    this.http.get<ChatMessage[]>(`${this.apiUrl}/api/chat/conversations/${conversation.id}/messages`).subscribe({
+      next: (messages) => {
+        holdSkeleton(this.messagesStartedAt, () => {
+          this.messages.set(messages);
+          this.messagesLoading.set(false);
+        });
+      },
+      error: () => {
+        holdSkeleton(this.messagesStartedAt, () => {
+          this.messages.set([]);
+          this.messagesLoading.set(false);
+        });
+      }
+    });
+  }
+
+  closeConversation() {
+    this.currentConversationId = '';
+    this.messages.set([]);
+    this.messagesLoading.set(false);
+    this.typingName.set('');
+  }
+
+  dismissToast() {
+    window.clearTimeout(this.toastTimer);
+    this.incomingToast.set(null);
+  }
+
+  private showIncomingToast(message: ChatMessage) {
+    const conversation =
+      this.conversations().find((item) => item.id === message.conversationId) ?? {
+        id: message.conversationId,
+        title: message.senderName || 'New message',
+        conversationType: 'Direct',
+        createdAtUtc: message.createdAtUtc,
+        lastMessage: this.toastPreview(message),
+        unreadCount: 1,
+        members: []
+      };
+    this.incomingToast.set({
+      conversationId: message.conversationId,
+      senderName: message.senderName || conversation.title,
+      preview: this.toastPreview(message),
+      conversation
+    });
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => this.incomingToast.set(null), 6500);
+    this.playChime();
+  }
+
+  private toastPreview(message: ChatMessage) {
+    if (message.messageType === 'Voice') {
+      return 'Voice message';
+    }
+    if (message.messageType === 'File') {
+      return message.fileName || 'Sent a file';
+    }
+    const text = (message.body || '').trim();
+    return text.length > 72 ? `${text.slice(0, 72)}...` : text || 'New message';
+  }
+
+  private playChime() {
+    const AudioContextCtor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextCtor) {
+      return;
+    }
+    const context = new AudioContextCtor();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(880, context.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(1240, context.currentTime + 0.14);
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.32);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.34);
+  }
+
+  async acknowledgeRead(conversationId: string) {
+    await this.connection?.invoke('AcknowledgeRead', conversationId);
   }
 
   startDirect(otherUserId: string) {
@@ -111,7 +298,41 @@ export class ChatService {
   }
 
   async sendText(conversationId: string, body: string) {
-    await this.connection?.invoke('SendText', conversationId, body);
+    const text = body.trim();
+    if (!text) {
+      return;
+    }
+    this.upsertMessage({
+      id: `pending-${Date.now()}`,
+      conversationId,
+      senderUserId: this.authService.userId(),
+      senderName: this.authService.fullName(),
+      messageType: 'Text',
+      body: text,
+      receiptStatus: 'Sent',
+      createdAtUtc: new Date().toISOString()
+    });
+    await this.connection?.invoke('SendText', conversationId, text);
+  }
+
+  upsertMessage(message: ChatMessage) {
+    this.messages.update((items) => {
+      const pendingIndex = items.findIndex(
+        (item) =>
+          item.id.startsWith('pending-') &&
+          item.body === message.body &&
+          item.senderUserId.toLowerCase() === message.senderUserId.toLowerCase()
+      );
+      if (pendingIndex >= 0 && !message.id.startsWith('pending-')) {
+        const next = [...items];
+        next[pendingIndex] = message;
+        return next;
+      }
+      if (items.some((item) => item.id === message.id)) {
+        return items;
+      }
+      return [...items, message];
+    });
   }
 
   async notifyTyping(conversationId: string) {

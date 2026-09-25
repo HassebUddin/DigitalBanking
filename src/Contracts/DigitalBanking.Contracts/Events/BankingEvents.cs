@@ -67,6 +67,21 @@ public sealed record MoneyTransferredEvent : IntegrationEvent
     public string ReferenceNumber { get; init; } = string.Empty;
 }
 
+public sealed record AccountApplicationRejectedEvent : IntegrationEvent
+{
+    public Guid ApplicationId { get; init; }
+    public Guid UserId { get; init; }
+    public string AccountType { get; init; } = string.Empty;
+    public string Note { get; init; } = string.Empty;
+}
+
+public sealed record AccountApplicationReopenedEvent : IntegrationEvent
+{
+    public Guid ApplicationId { get; init; }
+    public Guid UserId { get; init; }
+    public string AccountType { get; init; } = string.Empty;
+}
+
 public sealed record NotificationSentEvent : IntegrationEvent
 {
     public Guid NotificationId { get; init; }

@@ -47,6 +47,10 @@ export class AuthService {
     return this.isAdmin || this.isEmployee;
   }
 
+  get canReviewApplications(): boolean {
+    return this.isAdmin || this.role() === 'InternalEmployee';
+  }
+
   homeRoute(): string {
     if (this.isAdmin) {
       return '/admin';
@@ -70,6 +74,14 @@ export class AuthService {
 
   login(email: string, password: string) {
     return this.http.post<AuthResponse>(`${this.apiUrl}/api/auth/login`, { email, password }).pipe(tap((response) => this.storeSession(response)));
+  }
+
+  refreshSession() {
+    const refreshToken = localStorage.getItem(refreshTokenKey);
+    if (!refreshToken) {
+      throw new Error('No refresh token');
+    }
+    return this.http.post<AuthResponse>(`${this.apiUrl}/api/auth/refresh`, { refreshToken }).pipe(tap((response) => this.storeSession(response)));
   }
 
   get isCustomer(): boolean {

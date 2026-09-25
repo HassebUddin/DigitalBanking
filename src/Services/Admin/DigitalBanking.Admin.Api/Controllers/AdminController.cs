@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace DigitalBanking.Admin.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,InternalEmployee,ExternalEmployee")]
 [Route("api/admin")]
 public sealed class AdminController(AdminGatewayClient adminGatewayClient) : ControllerBase
 {
@@ -50,6 +50,15 @@ public sealed class AdminController(AdminGatewayClient adminGatewayClient) : Con
         return Ok(await adminGatewayClient.GetAuditLogsAsync(ReadAccessToken(), cancellationToken));
     }
 
+    [Authorize(Roles = "Admin,InternalEmployee")]
+    [HttpPost("customers/{customerId:guid}/kyc")]
+    public async Task<IActionResult> VerifyKyc(Guid customerId, CancellationToken cancellationToken)
+    {
+        await adminGatewayClient.VerifyKycAsync(ReadAccessToken(), customerId, cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize(Roles = "Admin")]
     [HttpPost("accounts/{accountId:guid}/freeze")]
     public async Task<IActionResult> Freeze(Guid accountId, CancellationToken cancellationToken)
     {
@@ -57,6 +66,7 @@ public sealed class AdminController(AdminGatewayClient adminGatewayClient) : Con
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("accounts/{accountId:guid}/unfreeze")]
     public async Task<IActionResult> Unfreeze(Guid accountId, CancellationToken cancellationToken)
     {
