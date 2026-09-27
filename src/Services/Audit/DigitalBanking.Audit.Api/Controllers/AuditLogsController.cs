@@ -10,9 +10,9 @@ namespace DigitalBanking.Audit.Api.Controllers;
 [Route("api/audit-logs")]
 public sealed class AuditLogsController(AuditService auditService) : ControllerBase
 {
-    [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<AuditLog>>> List([FromQuery] string? eventType, CancellationToken cancellationToken)
+    [HttpGet("get-audit-list")]
+    public async Task<ActionResult<IReadOnlyList<AuditLog>>> GetAuditList([FromQuery] string? eventType, CancellationToken cancellationToken)
     {
-        return Ok(await auditService.ListAsync(eventType, cancellationToken));
+        return Ok(await auditService.GetAuditListAsync(eventType, cancellationToken));
     }
 }

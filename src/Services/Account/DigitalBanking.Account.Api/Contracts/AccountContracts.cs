@@ -33,6 +33,7 @@ public sealed class AccountApplicationResponse
 
 public sealed class ReviewApplicationRequest
 {
+    public string Status { get; set; } = string.Empty;
     public string Note { get; set; } = string.Empty;
 }
 

@@ -460,7 +460,7 @@ export class AdminAccountsPage implements OnInit {
 
   approve(applicationId: string) {
     this.busyId.set(applicationId);
-    this.bankingService.approveAccountApplication(applicationId, 'Approved after document review.').subscribe({
+    this.bankingService.updateAccountApplicationStatus(applicationId, 'Approved', 'Approved after document review.').subscribe({
       next: () => {
         this.selectedApplication.set(null);
         this.reload(false);
@@ -471,7 +471,7 @@ export class AdminAccountsPage implements OnInit {
 
   reject(applicationId: string) {
     this.busyId.set(applicationId);
-    this.bankingService.rejectAccountApplication(applicationId, 'Documents need correction.').subscribe({
+    this.bankingService.updateAccountApplicationStatus(applicationId, 'Rejected', 'Documents need correction.').subscribe({
       next: () => {
         this.selectedApplication.set(null);
         this.reload(false);
@@ -482,7 +482,7 @@ export class AdminAccountsPage implements OnInit {
 
   reopen(applicationId: string) {
     this.busyId.set(applicationId);
-    this.bankingService.reopenAccountApplication(applicationId).subscribe({
+    this.bankingService.updateAccountApplicationStatus(applicationId, 'Pending', 'Returned to review by the bank.').subscribe({
       next: () => {
         this.selectedApplication.set(null);
         this.reload(false);

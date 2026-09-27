@@ -7,9 +7,9 @@ namespace DigitalBanking.Transaction.Api.Application;
 
 public sealed class AccountLedgerClient(HttpClient httpClient, IConfiguration configuration)
 {
-    public async Task<AccountSnapshot> GetAccountAsync(Guid accountId, CancellationToken cancellationToken)
+    public async Task<AccountSnapshot> GetInternalEmployeeAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(HttpMethod.Get, $"/api/accounts/internal/{accountId}");
+        using var request = CreateRequest(HttpMethod.Get, $"/api/accounts/get-internal-employee-account-by-id/{accountId}");
         var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
@@ -22,7 +22,7 @@ public sealed class AccountLedgerClient(HttpClient httpClient, IConfiguration co
 
     public async Task<AccountSnapshot> GetByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(HttpMethod.Get, $"/api/accounts/internal/by-number/{accountNumber}");
+        using var request = CreateRequest(HttpMethod.Get, $"/api/accounts/get-account-by-account-number/{accountNumber}");
         var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

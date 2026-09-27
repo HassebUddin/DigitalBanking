@@ -44,8 +44,8 @@ public sealed class AdminController(AdminGatewayClient adminGatewayClient) : Con
         return Ok(await adminGatewayClient.GetTransactionsAsync(ReadAccessToken(), cancellationToken));
     }
 
-    [HttpGet("audit-logs")]
-    public async Task<ActionResult<IReadOnlyList<AuditRow>>> AuditLogs(CancellationToken cancellationToken)
+    [HttpGet("get-audit-list")]
+    public async Task<ActionResult<IReadOnlyList<AuditRow>>> GetAuditList(CancellationToken cancellationToken)
     {
         return Ok(await adminGatewayClient.GetAuditLogsAsync(ReadAccessToken(), cancellationToken));
     }

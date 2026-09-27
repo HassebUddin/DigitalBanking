@@ -18,8 +18,8 @@ public sealed class ChatController(
     CurrentUser currentUser,
     IHubContext<ChatHub> hubContext) : ControllerBase
 {
-    [HttpGet("directory")]
-    public async Task<ActionResult<IReadOnlyList<DirectoryUserResponse>>> Directory(CancellationToken cancellationToken)
+    [HttpGet("active-users-except")]
+    public async Task<ActionResult<IReadOnlyList<DirectoryUserResponse>>> GetActiveUsersExcept(CancellationToken cancellationToken)
     {
         return Ok(await chatService.GetDirectoryAsync(ReadAccessToken(), cancellationToken));
     }

@@ -1,4 +1,5 @@
 using DigitalBanking.BuildingBlocks.Authentication;
+using DigitalBanking.BuildingBlocks.Exceptions;
 using DigitalBanking.Identity.Api.Application;
 using DigitalBanking.Identity.Api.Contracts;
 using Microsoft.AspNetCore.Authorization;
@@ -13,6 +14,11 @@ public sealed class AuthController(AuthService authService, CurrentUser currentU
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.FullName) || string.IsNullOrWhiteSpace(request.NationalId) || string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8)
+        {
+            throw new ValidationException("Email, full name, national ID, and a password of at least 8 characters are required.");
+        }
+
         return Ok(await authService.RegisterAsync(request, cancellationToken));
     }
 
@@ -39,6 +45,11 @@ public sealed class AuthController(AuthService authService, CurrentUser currentU
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        {
+            throw new ValidationException("Password must be at least 8 characters.");
+        }
+
         await authService.ChangePasswordAsync(currentUser.UserId, request, cancellationToken);
         return NoContent();
     }
@@ -52,35 +63,12 @@ public sealed class AuthController(AuthService authService, CurrentUser currentU
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        {
+            throw new ValidationException("Password must be at least 8 characters.");
+        }
+
         await authService.ResetPasswordAsync(request, cancellationToken);
         return NoContent();
-    }
-
-    [Authorize]
-    [HttpGet("me")]
-    public async Task<ActionResult<CurrentUserResponse>> Me(CancellationToken cancellationToken)
-    {
-        return Ok(await authService.GetCurrentUserAsync(currentUser.UserId, cancellationToken));
-    }
-
-    [Authorize]
-    [HttpGet("directory")]
-    public async Task<ActionResult<IReadOnlyList<DirectoryUserResponse>>> Directory(CancellationToken cancellationToken)
-    {
-        return Ok(await authService.GetDirectoryAsync(currentUser.UserId, currentUser.Role, cancellationToken));
-    }
-
-    [Authorize]
-    [HttpGet("directory/{userId:guid}")]
-    public async Task<ActionResult<DirectoryUserResponse>> DirectoryUser(Guid userId, CancellationToken cancellationToken)
-    {
-        return Ok(await authService.GetDirectoryUserAsync(userId, cancellationToken));
-    }
-
-    [Authorize(Roles = "Admin")]
-    [HttpPost("employees")]
-    public async Task<ActionResult<DirectoryUserResponse>> CreateEmployee(CreateEmployeeRequest request, CancellationToken cancellationToken)
-    {
-        return Ok(await authService.CreateEmployeeAsync(request, cancellationToken));
     }
 }

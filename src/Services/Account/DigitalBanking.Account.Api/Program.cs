@@ -1,5 +1,6 @@
 using DigitalBanking.Account.Api.Application;
 using DigitalBanking.Account.Api.Infrastructure;
+using DigitalBanking.Account.Api.Repository;
 using DigitalBanking.BuildingBlocks.Http;
 using DigitalBanking.BuildingBlocks.Web;
 using Microsoft.AspNetCore.Http.Features;
@@ -13,6 +14,7 @@ builder.Services.AddBankingServiceDefaults(builder.Configuration, "account-servi
 builder.Services.AddDbContext<AccountDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Account")));
 builder.Services.AddOutboxPublisher<AccountDbContext>();
+builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddSingleton<AccountFileStore>();
 builder.Services.Configure<ServiceEndpoints>(builder.Configuration.GetSection(ServiceEndpoints.SectionName));

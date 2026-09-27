@@ -25,14 +25,7 @@ public sealed class CustomerRegisteredHandler(CustomerDbContext dbContext, Custo
             return;
         }
 
-        await customerService.CreateFromRegistrationAsync(
-            registeredEvent.UserId,
-            registeredEvent.Email,
-            registeredEvent.FullName,
-            registeredEvent.NationalId,
-            registeredEvent.PhoneNumber,
-            registeredEvent.Address,
-            cancellationToken);
+        await customerService.CreateCustomerFromRegistrationAsync(registeredEvent.UserId, registeredEvent.Email, registeredEvent.FullName, registeredEvent.NationalId, registeredEvent.PhoneNumber, registeredEvent.Address, cancellationToken);
 
         InboxGuard.MarkProcessed(dbContext, registeredEvent.EventId);
         await dbContext.SaveChangesAsync(cancellationToken);

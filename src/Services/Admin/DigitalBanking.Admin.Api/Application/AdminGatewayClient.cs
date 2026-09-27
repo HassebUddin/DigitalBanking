@@ -7,27 +7,27 @@ public sealed class AdminGatewayClient(IHttpClientFactory httpClientFactory, ICo
 {
     public Task<IReadOnlyList<CustomerRow>> GetCustomersAsync(string accessToken, CancellationToken cancellationToken)
     {
-        return GetListAsync<CustomerRow>(configuration["ServiceEndpoints:Customer"]!, "/api/customers", accessToken, cancellationToken);
+        return GetListAsync<CustomerRow>(configuration["ServiceEndpoints:Customer"]!, "/api/customers/get-customers", accessToken, cancellationToken);
     }
 
     public Task<IReadOnlyList<AccountRow>> GetAccountsAsync(string accessToken, CancellationToken cancellationToken)
     {
-        return GetListAsync<AccountRow>(configuration["ServiceEndpoints:Account"]!, "/api/accounts", accessToken, cancellationToken);
+        return GetListAsync<AccountRow>(configuration["ServiceEndpoints:Account"]!, "/api/accounts/get-accounts", accessToken, cancellationToken);
     }
 
     public Task<IReadOnlyList<TransactionRow>> GetTransactionsAsync(string accessToken, CancellationToken cancellationToken)
     {
-        return GetListAsync<TransactionRow>(configuration["ServiceEndpoints:Transaction"]!, "/api/transactions", accessToken, cancellationToken);
+        return GetListAsync<TransactionRow>(configuration["ServiceEndpoints:Transaction"]!, "/api/transactions/get-transactions", accessToken, cancellationToken);
     }
 
     public Task<IReadOnlyList<AuditRow>> GetAuditLogsAsync(string accessToken, CancellationToken cancellationToken)
     {
-        return GetListAsync<AuditRow>(configuration["ServiceEndpoints:Audit"]!, "/api/audit-logs", accessToken, cancellationToken);
+        return GetListAsync<AuditRow>(configuration["ServiceEndpoints:Audit"]!, "/api/audit-logs/get-audit-list", accessToken, cancellationToken);
     }
 
     public async Task VerifyKycAsync(string accessToken, Guid customerId, CancellationToken cancellationToken)
     {
-        await PostAsync(configuration["ServiceEndpoints:Customer"]!, $"/api/customers/{customerId}/kyc", accessToken, cancellationToken);
+        await PostAsync(configuration["ServiceEndpoints:Customer"]!, $"/api/customers/update-kyc-status/{customerId}", accessToken, cancellationToken);
     }
 
     public async Task FreezeAccountAsync(string accessToken, Guid accountId, CancellationToken cancellationToken)

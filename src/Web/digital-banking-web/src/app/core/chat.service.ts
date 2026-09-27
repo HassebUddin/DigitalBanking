@@ -110,7 +110,7 @@ export class ChatService {
         this.directory.set([]);
       }
     }
-    this.http.get<DirectoryUser[]>(`${this.apiUrl}/api/chat/directory`).subscribe({
+    this.http.get<DirectoryUser[]>(`${this.apiUrl}/api/chat/active-users-except`).subscribe({
       next: (users) => {
         if (holding && this.directoryLoading()) {
           holdSkeleton(this.directoryStartedAt, () => {
@@ -381,6 +381,6 @@ export class ChatService {
   }
 
   createEmployee(payload: { email: string; password: string; fullName: string; role: string }) {
-    return this.http.post<DirectoryUser>(`${this.apiUrl}/api/auth/employees`, payload);
+    return this.http.post<DirectoryUser>(`${this.apiUrl}/api/employees/create-employee`, payload);
   }
 }

@@ -24,19 +24,19 @@ export class BankingService {
   }
 
   getProfile() {
-    return this.http.get<CustomerProfile>(`${this.apiUrl}/api/customers/me`);
+    return this.http.get<CustomerProfile>(`${this.apiUrl}/api/customers/get-or-create-customer-profile`);
   }
 
   updateProfile(payload: { fullName: string; phoneNumber: string; address: string }) {
-    return this.http.put<CustomerProfile>(`${this.apiUrl}/api/customers/me`, payload);
+    return this.http.put<CustomerProfile>(`${this.apiUrl}/api/customers/update-customer`, payload);
   }
 
   getAccounts() {
-    return this.http.get<BankAccount[]>(`${this.apiUrl}/api/accounts`);
+    return this.http.get<BankAccount[]>(`${this.apiUrl}/api/accounts/get-accounts`);
   }
 
   getAccountApplications() {
-    return this.http.get<AccountApplication[]>(`${this.apiUrl}/api/accounts/applications`);
+    return this.http.get<AccountApplication[]>(`${this.apiUrl}/api/accounts/get-account-applications`);
   }
 
   applyForAccount(payload: {
@@ -53,31 +53,23 @@ export class BankingService {
     form.append('identityDocument', payload.identityDocument);
     form.append('identityBackDocument', payload.identityBackDocument);
     form.append('signature', payload.signature);
-    return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/applications`, form);
+    return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/request-account-application`, form);
   }
 
-  approveAccountApplication(applicationId: string, note = '') {
-    return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/applications/${applicationId}/approve`, { note });
-  }
-
-  rejectAccountApplication(applicationId: string, note = '') {
-    return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/applications/${applicationId}/reject`, { note });
-  }
-
-  reopenAccountApplication(applicationId: string) {
-    return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/applications/${applicationId}/reopen`, {});
+  updateAccountApplicationStatus(applicationId: string, status: string, note = '') {
+    return this.http.post<AccountApplication>(`${this.apiUrl}/api/accounts/update-account-application-status/${applicationId}`, { status, note });
   }
 
   deposit(accountId: string, amount: number, description: string) {
-    return this.http.post<BankTransaction>(`${this.apiUrl}/api/transactions/deposit`, { accountId, amount, description });
+    return this.http.post<BankTransaction>(`${this.apiUrl}/api/transactions/deposit-transaction`, { accountId, amount, description });
   }
 
   withdraw(accountId: string, amount: number, description: string) {
-    return this.http.post<BankTransaction>(`${this.apiUrl}/api/transactions/withdraw`, { accountId, amount, description });
+    return this.http.post<BankTransaction>(`${this.apiUrl}/api/transactions/withdraw-transaction`, { accountId, amount, description });
   }
 
   transfer(sourceAccountId: string, destinationAccountNumber: string, amount: number, description: string) {
-    return this.http.post<BankTransaction>(`${this.apiUrl}/api/transactions/transfer`, {
+    return this.http.post<BankTransaction>(`${this.apiUrl}/api/transactions/transfer-transaction`, {
       sourceAccountId,
       destinationAccountNumber,
       amount,
@@ -99,12 +91,12 @@ export class BankingService {
         params = params.set(key, String(value));
       }
     });
-    return this.http.get<BankTransaction[]>(`${this.apiUrl}/api/transactions`, { params });
+    return this.http.get<BankTransaction[]>(`${this.apiUrl}/api/transactions/get-transactions`, { params });
   }
 
   getStatement(accountId: string, fromDateUtc: string, toDateUtc: string) {
     const params = new HttpParams().set('fromDateUtc', fromDateUtc).set('toDateUtc', toDateUtc);
-    return this.http.get<Statement>(`${this.apiUrl}/api/transactions/statement/${accountId}`, { params });
+    return this.http.get<Statement>(`${this.apiUrl}/api/transactions/get-transaction-statement/${accountId}`, { params });
   }
 
   getNotifications() {
@@ -136,7 +128,7 @@ export class BankingService {
   }
 
   getAdminAuditLogs() {
-    return this.http.get<AuditLog[]>(`${this.apiUrl}/api/admin/audit-logs`);
+    return this.http.get<AuditLog[]>(`${this.apiUrl}/api/admin/get-audit-list`);
   }
 
   verifyCustomerKyc(customerId: string) {

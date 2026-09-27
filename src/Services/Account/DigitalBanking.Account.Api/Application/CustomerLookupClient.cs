@@ -7,7 +7,7 @@ public sealed class CustomerLookupClient(HttpClient httpClient)
 {
     public async Task<Guid> GetCustomerIdAsync(string accessToken, CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/customers/me");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/customers/get-or-create-customer-profile");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)

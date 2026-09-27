@@ -1,133 +1,83 @@
 using DigitalBanking.BuildingBlocks.Exceptions;
 using DigitalBanking.Customer.Api.Contracts;
 using DigitalBanking.Customer.Api.Domain;
-using DigitalBanking.Customer.Api.Infrastructure;
-using Microsoft.EntityFrameworkCore;
+using DigitalBanking.Customer.Api.Repository;
 
 namespace DigitalBanking.Customer.Api.Application;
 
-public sealed class CustomerService(CustomerDbContext dbContext)
+public sealed class CustomerService(ICustomerRepository customerRepository)
 {
-    public async Task<CustomerResponse> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<CustomerResponse> GetOrCreateCustomerProfileAsync(Guid userId, string email, string fullName, CancellationToken cancellationToken)
     {
-        var customer = await dbContext.Customers.FirstOrDefaultAsync(item => item.UserId == userId, cancellationToken)
-            ?? throw new NotFoundException("Customer profile was not found.");
-        return Map(customer);
-    }
-
-    public async Task<CustomerResponse> GetOrCreateMineAsync(Guid userId, string email, string fullName, CancellationToken cancellationToken)
-    {
-        var customer = await dbContext.Customers.FirstOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        var customer = await customerRepository.GetCustomerByUserIdAsync(userId, cancellationToken);
         if (customer is not null)
-        {
-            return Map(customer);
-        }
+            return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
 
-        customer = await CreateProfileAsync(
-            userId,
-            email,
-            string.IsNullOrWhiteSpace(fullName) ? email : fullName,
-            await UniqueNationalIdAsync(userId, cancellationToken),
-            string.Empty,
-            string.Empty,
-            cancellationToken);
-        return Map(customer);
+        customer = await CreateCustomerProfileAsync(userId, email, string.IsNullOrWhiteSpace(fullName) ? email : fullName, await UniqueNationalIdAsync(userId, cancellationToken), string.Empty, string.Empty, cancellationToken);
+        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
     }
 
-    public async Task<CustomerResponse> GetByIdAsync(Guid customerId, CancellationToken cancellationToken)
+    public async Task<CustomerResponse> GetCustomerByIdAsync(Guid customerId, CancellationToken cancellationToken)
     {
-        var customer = await dbContext.Customers.FirstOrDefaultAsync(item => item.Id == customerId, cancellationToken)
-            ?? throw new NotFoundException("Customer profile was not found.");
-        return Map(customer);
+        var customer = await customerRepository.GetCustomerByIdAsync(customerId, cancellationToken) ?? throw new NotFoundException("Customer profile was not found.");
+        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
     }
 
-    public async Task<IReadOnlyList<CustomerResponse>> ListAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CustomerResponse>> GetCustomersAsync(CancellationToken cancellationToken)
     {
-        var customers = await dbContext.Customers
-            .OrderByDescending(customer => customer.CreatedAtUtc)
-            .ToListAsync(cancellationToken);
-        return customers.Select(Map).ToList();
+        var customers = await customerRepository.GetCustomersAsync(cancellationToken);
+        return customers.Select(customer => new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc }).ToList();
     }
 
-    public async Task<CustomerResponse> UpdateAsync(Guid userId, string email, UpdateCustomerRequest request, CancellationToken cancellationToken)
+    public async Task<CustomerResponse> UpdateCustomerAsync(Guid userId, string email, UpdateCustomerRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.FullName))
-        {
-            throw new ValidationException("Full name is required.");
-        }
-
-        var customer = await dbContext.Customers.FirstOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        var customer = await customerRepository.GetCustomerByUserIdAsync(userId, cancellationToken);
         if (customer is null)
         {
-            customer = await CreateProfileAsync(
-                userId,
-                email,
-                request.FullName.Trim(),
-                await UniqueNationalIdAsync(userId, cancellationToken),
-                request.PhoneNumber.Trim(),
-                request.Address.Trim(),
-                cancellationToken);
-            return Map(customer);
+            customer = await CreateCustomerProfileAsync(userId, email, request.FullName.Trim(), await UniqueNationalIdAsync(userId, cancellationToken), request.PhoneNumber.Trim(), request.Address.Trim(), cancellationToken);
+            return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
         }
 
         customer.FullName = request.FullName.Trim();
         customer.PhoneNumber = request.PhoneNumber.Trim();
         customer.Address = request.Address.Trim();
         customer.UpdatedAtUtc = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return Map(customer);
+        await customerRepository.SaveCustomerChangesAsync(cancellationToken);
+        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
     }
 
-    public async Task<CustomerResponse> SetKycStatusAsync(Guid customerId, string status, CancellationToken cancellationToken)
+    public async Task<CustomerResponse> UpdateKycStatusAsync(Guid customerId, string status, CancellationToken cancellationToken)
     {
-        if (status is not ("Verified" or "Pending"))
-        {
-            throw new ValidationException("KYC status is invalid.");
-        }
-
-        var customer = await dbContext.Customers.FirstOrDefaultAsync(item => item.Id == customerId, cancellationToken)
-            ?? throw new NotFoundException("Customer profile was not found.");
+        var customer = await customerRepository.GetCustomerByIdAsync(customerId, cancellationToken) ?? throw new NotFoundException("Customer profile was not found.");
         customer.KycStatus = status;
         customer.UpdatedAtUtc = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return Map(customer);
+        await customerRepository.SaveCustomerChangesAsync(cancellationToken);
+        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
     }
 
-    public async Task DeleteAsync(Guid customerId, CancellationToken cancellationToken)
+    public async Task DeleteCustomerAsync(Guid customerId, CancellationToken cancellationToken)
     {
-        var customer = await dbContext.Customers.FirstOrDefaultAsync(item => item.Id == customerId, cancellationToken)
-            ?? throw new NotFoundException("Customer profile was not found.");
-        dbContext.Customers.Remove(customer);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var customer = await customerRepository.GetCustomerByIdAsync(customerId, cancellationToken) ?? throw new NotFoundException("Customer profile was not found.");
+        customerRepository.RemoveCustomer(customer);
+        await customerRepository.SaveCustomerChangesAsync(cancellationToken);
     }
 
-    public async Task CreateFromRegistrationAsync(Guid userId, string email, string fullName, string nationalId, string phoneNumber, string address, CancellationToken cancellationToken)
+    public async Task CreateCustomerFromRegistrationAsync(Guid userId, string email, string fullName, string nationalId, string phoneNumber, string address, CancellationToken cancellationToken)
     {
-        var exists = await dbContext.Customers.AnyAsync(customer => customer.UserId == userId, cancellationToken);
-        if (exists)
+        if (await customerRepository.CustomerExistsByUserIdAsync(userId, cancellationToken))
         {
             return;
         }
 
         var uniqueNationalId = nationalId.Trim();
-        var nationalIdTaken = !string.IsNullOrWhiteSpace(uniqueNationalId)
-            && await dbContext.Customers.AnyAsync(customer => customer.NationalId == uniqueNationalId, cancellationToken);
+        var nationalIdTaken = !string.IsNullOrWhiteSpace(uniqueNationalId) && await customerRepository.CustomerExistsByNationalIdAsync(uniqueNationalId, cancellationToken);
         if (string.IsNullOrWhiteSpace(uniqueNationalId) || nationalIdTaken)
-        {
             uniqueNationalId = await UniqueNationalIdAsync(userId, cancellationToken);
-        }
 
-        await CreateProfileAsync(userId, email, fullName, uniqueNationalId, phoneNumber, address, cancellationToken);
+        await CreateCustomerProfileAsync(userId, email, fullName, uniqueNationalId, phoneNumber, address, cancellationToken);
     }
 
-    private async Task<CustomerProfile> CreateProfileAsync(
-        Guid userId,
-        string email,
-        string fullName,
-        string nationalId,
-        string phoneNumber,
-        string address,
-        CancellationToken cancellationToken)
+    private async Task<CustomerProfile> CreateCustomerProfileAsync(Guid userId, string email, string fullName, string nationalId, string phoneNumber, string address, CancellationToken cancellationToken)
     {
         var customer = new CustomerProfile
         {
@@ -143,31 +93,15 @@ public sealed class CustomerService(CustomerDbContext dbContext)
             UpdatedAtUtc = DateTime.UtcNow
         };
 
-        dbContext.Customers.Add(customer);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        customerRepository.AddCustomer(customer);
+        await customerRepository.SaveCustomerChangesAsync(cancellationToken);
         return customer;
     }
 
     private async Task<string> UniqueNationalIdAsync(Guid userId, CancellationToken cancellationToken)
     {
         var candidate = $"TMP-{userId:N}"[..20];
-        var taken = await dbContext.Customers.AnyAsync(customer => customer.NationalId == candidate, cancellationToken);
+        var taken = await customerRepository.CustomerExistsByNationalIdAsync(candidate, cancellationToken);
         return taken ? $"TMP-{Guid.NewGuid():N}"[..20] : candidate;
-    }
-
-    private static CustomerResponse Map(CustomerProfile customer)
-    {
-        return new CustomerResponse
-        {
-            Id = customer.Id,
-            UserId = customer.UserId,
-            FullName = customer.FullName,
-            Email = customer.Email,
-            NationalId = customer.NationalId,
-            PhoneNumber = customer.PhoneNumber,
-            Address = customer.Address,
-            KycStatus = customer.KycStatus,
-            CreatedAtUtc = customer.CreatedAtUtc
-        };
     }
 }
