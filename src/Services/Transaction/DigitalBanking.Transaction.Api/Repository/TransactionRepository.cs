@@ -29,6 +29,20 @@ public sealed class TransactionRepository(TransactionDbContext dbContext) : ITra
         return dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public Task<BankTransaction?> GetTransactionByIdAsync(Guid transactionId, CancellationToken cancellationToken)
+    {
+        return dbContext.Transactions.FirstOrDefaultAsync(transaction => transaction.Id == transactionId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TransferSaga>> GetUndoPendingSagasAsync(CancellationToken cancellationToken)
+    {
+        var cutoffUtc = DateTime.UtcNow.AddSeconds(-20);
+        return await dbContext.TransferSagas
+            .Where(saga => saga.State == TransferSagaStates.Compensating || (saga.State == TransferSagaStates.Debited && dbContext.Transactions.Any(transaction => transaction.Id == saga.TransactionId && transaction.CreatedAtUtc <= cutoffUtc)))
+            .Take(20)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<BankTransaction>> GetTransactionsAsync(Guid userId, bool isAdmin, TransactionSearchRequest request, CancellationToken cancellationToken)
     {
         var query = dbContext.Transactions.AsQueryable();

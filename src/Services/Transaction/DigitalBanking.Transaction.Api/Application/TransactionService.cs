@@ -73,37 +73,62 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         transactionRepository.AddTransferSaga(saga);
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
 
-        try
+        if (TransferSagaMachine.NextAction(saga.State) == TransferSagaMachine.DebitSource)
         {
-            await accountLedgerClient.DebitAsync(sourceAccount.Id, request.Amount, transaction.ReferenceNumber, cancellationToken);
-            saga.State = TransferSagaStates.Debited;
-            await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
-        }
-        catch
-        {
-            transaction.Status = TransactionStatuses.Failed;
-            saga.State = TransferSagaStates.Failed;
-            await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
-            throw;
+            try
+            {
+                await accountLedgerClient.DebitAsync(sourceAccount.Id, request.Amount, transaction.ReferenceNumber, cancellationToken);
+                saga.State = TransferSagaStates.Debited;
+                await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
+            }
+            catch
+            {
+                transaction.Status = TransactionStatuses.Failed;
+                saga.State = TransferSagaStates.Failed;
+                await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
+                throw;
+            }
         }
 
-        try
+        if (TransferSagaMachine.NextAction(saga.State) == TransferSagaMachine.CreditDestination)
         {
-            await accountLedgerClient.CreditAsync(destinationAccount.Id, request.Amount, transaction.ReferenceNumber, cancellationToken);
-            transaction.Status = TransactionStatuses.Completed;
-            saga.State = TransferSagaStates.Completed;
-            transactionRepository.AddTransactionEvent(new MoneyTransferredEvent { TransactionId = transaction.Id, SourceAccountId = sourceAccount.Id, DestinationAccountId = destinationAccount.Id, SourceUserId = sourceAccount.UserId, DestinationUserId = destinationAccount.UserId, Amount = request.Amount, ReferenceNumber = transaction.ReferenceNumber });
-            await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
-            return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+            try
+            {
+                await accountLedgerClient.CreditAsync(destinationAccount.Id, request.Amount, transaction.ReferenceNumber, cancellationToken);
+                transaction.Status = TransactionStatuses.Completed;
+                saga.State = TransferSagaStates.Completed;
+                transactionRepository.AddTransactionEvent(new MoneyTransferredEvent { TransactionId = transaction.Id, SourceAccountId = sourceAccount.Id, DestinationAccountId = destinationAccount.Id, SourceUserId = sourceAccount.UserId, DestinationUserId = destinationAccount.UserId, Amount = request.Amount, ReferenceNumber = transaction.ReferenceNumber });
+                await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
+                return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+            }
+            catch
+            {
+                saga.State = TransferSagaStates.Compensating;
+                await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
+            }
         }
-        catch
+
+        if (TransferSagaMachine.NextAction(saga.State) == TransferSagaMachine.RefundSource)
         {
-            await accountLedgerClient.CreditAsync(sourceAccount.Id, request.Amount, $"{transaction.ReferenceNumber}-REFUND", cancellationToken);
-            transaction.Status = TransactionStatuses.Compensated;
-            saga.State = TransferSagaStates.Compensated;
-            await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
-            throw new BusinessRuleException("Transfer failed and the source account was refunded.");
+            try
+            {
+                await accountLedgerClient.CreditAsync(sourceAccount.Id, request.Amount, $"{transaction.ReferenceNumber}-REFUND", cancellationToken);
+                transaction.Status = TransactionStatuses.Compensated;
+                saga.State = TransferSagaStates.Compensated;
+                await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
+                throw new BusinessRuleException("Transfer failed and the source account was refunded.");
+            }
+            catch (BusinessRuleException)
+            {
+                throw;
+            }
+            catch
+            {
+                throw new BusinessRuleException("Transfer failed. Refund is pending and will be retried.");
+            }
         }
+
+        throw new BusinessRuleException("Transfer failed.");
     }
 
     public async Task<IReadOnlyList<TransactionResponse>> GetTransactionsAsync(Guid userId, bool isAdmin, TransactionSearchRequest request, CancellationToken cancellationToken)

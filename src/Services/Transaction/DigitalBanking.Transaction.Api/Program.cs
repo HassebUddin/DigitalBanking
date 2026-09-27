@@ -13,6 +13,7 @@ builder.Services.AddDbContext<TransactionDbContext>(options =>
 builder.Services.AddOutboxPublisher<TransactionDbContext>();
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddScoped<TransactionService>();
+builder.Services.AddHostedService<TransferSagaRecoveryHostedService>();
 builder.Services.Configure<ServiceEndpoints>(builder.Configuration.GetSection(ServiceEndpoints.SectionName));
 builder.Services.AddHttpClient<AccountLedgerClient>((serviceProvider, httpClient) =>
 {

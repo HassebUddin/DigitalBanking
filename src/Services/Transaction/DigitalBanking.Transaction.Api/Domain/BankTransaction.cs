@@ -44,6 +44,23 @@ public static class TransferSagaStates
     public const string Started = "Started";
     public const string Debited = "Debited";
     public const string Completed = "Completed";
+    public const string Compensating = "Compensating";
     public const string Compensated = "Compensated";
     public const string Failed = "Failed";
+}
+
+public static class TransferSagaMachine
+{
+    public const string DebitSource = "DebitSource";
+    public const string CreditDestination = "CreditDestination";
+    public const string RefundSource = "RefundSource";
+    public const string Stop = "Stop";
+
+    public static string NextAction(string state) => state switch
+    {
+        TransferSagaStates.Started => DebitSource,
+        TransferSagaStates.Debited => CreditDestination,
+        TransferSagaStates.Compensating => RefundSource,
+        _ => Stop
+    };
 }
