@@ -14,6 +14,10 @@ public static class IdentitySeeder
         await EnsureUserAsync(dbContext, passwordHasher, Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), "admin@digitalbank.local", "Bank Admin", UserRoles.Admin, "Admin@12345");
         await EnsureUserAsync(dbContext, passwordHasher, Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "internal@digitalbank.local", "Ayesha Malik", UserRoles.InternalEmployee, "Internal@12345");
         await EnsureUserAsync(dbContext, passwordHasher, Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"), "external@digitalbank.local", "Omar Sheikh", UserRoles.ExternalEmployee, "External@12345");
+        await EnsureUserAsync(dbContext, passwordHasher, Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2"), "internal2@digitalbank.local", "Bilal Ahmed", UserRoles.InternalEmployee, "Internal@12345");
+        await EnsureUserAsync(dbContext, passwordHasher, Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"), "customer@digitalbank.local", "Demo Customer", UserRoles.Customer, "Customer@12345");
+        await EnsureUserAsync(dbContext, passwordHasher, Guid.Parse("dddddddd-dddd-dddd-dddd-ddddddddddd2"), "ali.raza@digitalbank.local", "Ali Raza", UserRoles.Customer, "Customer@12345");
+        await EnsureUserAsync(dbContext, passwordHasher, Guid.Parse("dddddddd-dddd-dddd-dddd-ddddddddddd3"), "sara.khan@digitalbank.local", "Sara Khan", UserRoles.Customer, "Customer@12345");
         await dbContext.SaveChangesAsync();
     }
 

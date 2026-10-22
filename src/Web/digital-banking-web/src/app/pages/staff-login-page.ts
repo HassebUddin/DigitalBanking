@@ -4,10 +4,11 @@ import { Router, RouterLink } from '@angular/router';
 import { resolveApiUrl, saveApiUrl } from '../core/api-url';
 import { AuthService } from '../core/auth.service';
 import { readErrorMessage } from '../core/http-error';
+import { DemoLogins } from '../shared/demo-logins';
 
 @Component({
   selector: 'app-staff-login-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, DemoLogins],
   template: `
     <section class="auth-screen">
       <div class="auth-hero">
@@ -33,6 +34,7 @@ import { readErrorMessage } from '../core/http-error';
           @if (error()) { <p class="error">{{ error() }}</p> }
           <button type="submit" [disabled]="busy()">Enter portal</button>
         </form>
+        <app-demo-logins defaultTab="staff" (fill)="email = $event.email; password = $event.password" />
         <p class="hint">Customers cannot use this portal. External staff are field officers, not account holders.</p>
         <div class="links">
           <a routerLink="/login">Customer login</a>

@@ -17,13 +17,6 @@ import { TransactionsPage } from './pages/transactions-page';
 import { NotificationsPage } from './pages/notifications-page';
 import { ProfilePage } from './pages/profile-page';
 import { ProfileEditPage } from './pages/profile-edit-page';
-import {
-  AdminAccountsPage,
-  AdminAuditPage,
-  AdminCustomersPage,
-  AdminDashboardPage,
-  AdminTransactionsPage
-} from './pages/admin-pages';
 import { DeskHomePage } from './pages/desk-home-page';
 import { DeskPeoplePage } from './pages/desk-people-page';
 import { DeskCardsPage } from './pages/desk-cards-page';
@@ -65,11 +58,18 @@ export const routes: Routes = [
     component: AdminShell,
     canActivate: [authGuard, adminGuard],
     children: [
-      { path: '', component: AdminDashboardPage },
-      { path: 'customers', component: AdminCustomersPage },
-      { path: 'accounts', component: AdminAccountsPage },
-      { path: 'transactions', component: AdminTransactionsPage },
-      { path: 'audit', component: AdminAuditPage },
+      { path: '', loadComponent: () => import('./ops/pages/command-center-page').then((m) => m.CommandCenterPage) },
+      { path: 'regions', loadComponent: () => import('./ops/pages/regions-page').then((m) => m.RegionsPage) },
+      { path: 'health', loadComponent: () => import('./ops/pages/health-page').then((m) => m.HealthPage) },
+      { path: 'logs', loadComponent: () => import('./ops/pages/logs-page').then((m) => m.LogsPage) },
+      { path: 'rules', loadComponent: () => import('./ops/pages/rules-page').then((m) => m.RulesPage) },
+      { path: 'infrastructure', loadComponent: () => import('./ops/pages/infrastructure-page').then((m) => m.InfrastructurePage) },
+      { path: 'data', loadComponent: () => import('./ops/pages/data-explorer-page').then((m) => m.DataExplorerPage) },
+      { path: 'banking', loadComponent: () => import('./ops/pages/banking-pages').then((m) => m.BankOverviewPage) },
+      { path: 'customers', loadComponent: () => import('./ops/pages/banking-pages').then((m) => m.BankCustomersPage) },
+      { path: 'accounts', loadComponent: () => import('./ops/pages/banking-pages').then((m) => m.BankAccountsPage) },
+      { path: 'transactions', loadComponent: () => import('./ops/pages/banking-pages').then((m) => m.BankTransactionsPage) },
+      { path: 'audit', loadComponent: () => import('./ops/pages/banking-pages').then((m) => m.BankAuditPage) },
       { path: 'chat', component: ChatPage }
     ]
   },

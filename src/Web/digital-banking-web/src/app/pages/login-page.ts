@@ -4,10 +4,11 @@ import { Router, RouterLink } from '@angular/router';
 import { resolveApiUrl, saveApiUrl } from '../core/api-url';
 import { AuthService } from '../core/auth.service';
 import { readErrorMessage } from '../core/http-error';
+import { DemoLogins } from '../shared/demo-logins';
 
 @Component({
   selector: 'app-login-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, DemoLogins],
   template: `
     <section class="auth-screen">
       <div class="auth-hero">
@@ -36,6 +37,7 @@ import { readErrorMessage } from '../core/http-error';
           @if (error()) { <p class="error">{{ error() }}</p> }
           <button type="submit" [disabled]="busy()">Login</button>
         </form>
+        <app-demo-logins defaultTab="customer" (fill)="email = $event.email; password = $event.password" />
         <div class="links">
           <a routerLink="/register">Open account</a>
           <a routerLink="/forgot-password">Forgot password</a>

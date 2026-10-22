@@ -1,6 +1,7 @@
 using DigitalBanking.BuildingBlocks.Authentication;
 using DigitalBanking.BuildingBlocks.Caching;
 using DigitalBanking.BuildingBlocks.Messaging;
+using DigitalBanking.BuildingBlocks.Observability;
 using DigitalBanking.BuildingBlocks.Outbox;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,7 @@ public static class ServiceCollectionExtensions
         services.AddJwtAuthentication(configuration);
         services.AddRabbitMq(configuration, queueName);
         services.AddRedisCache(configuration);
+        services.AddBankingTelemetry(configuration, ServiceName(queueName));
         services.AddControllers();
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();
@@ -34,13 +36,20 @@ public static class ServiceCollectionExtensions
 
     public static WebApplication UseBankingServicePipeline(this WebApplication app)
     {
+        app.UseBankingTelemetry();
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         app.UseSwagger();
         app.UseSwaggerUI();
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
+        app.MapLoadProbe(app.Services.GetRequiredService<TelemetryOptions>().ServiceName);
         return app;
+    }
+
+    private static string ServiceName(string queueName)
+    {
+        return queueName.EndsWith("-service", StringComparison.Ordinal) ? queueName[..^"-service".Length] : queueName;
     }
 
     public static async Task EnsureDatabaseCreatedAsync<TDbContext>(this WebApplication app)

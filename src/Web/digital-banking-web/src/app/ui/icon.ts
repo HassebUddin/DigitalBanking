@@ -52,6 +52,60 @@ import { Component, Input } from '@angular/core';
         @case ('back') {
           <path d="M15 6 9 12l6 6" />
         }
+        @case ('activity') {
+          <path d="M3 12h4l3-8 4 16 3-8h4" />
+        }
+        @case ('map') {
+          <path d="M9 4 3 6.5v13.5L9 17.5l6 2.5 6-2.5V4l-6 2.5z" />
+          <path d="M9 4v13.5M15 6.5V20" />
+        }
+        @case ('server') {
+          <rect x="4" y="4" width="16" height="7" rx="1.5" />
+          <rect x="4" y="13" width="16" height="7" rx="1.5" />
+          <path d="M8 7.5h.01M8 16.5h.01" />
+        }
+        @case ('list') {
+          <path d="M9 6h11M9 12h11M9 18h11" />
+          <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+        }
+        @case ('shield') {
+          <path d="M12 3 5 6v5.5c0 4.3 3 8 7 9.5 4-1.5 7-5.2 7-9.5V6z" />
+          <path d="m9 12 2 2 4-4" />
+        }
+        @case ('grid') {
+          <rect x="4" y="4" width="7" height="7" rx="1.5" />
+          <rect x="13" y="4" width="7" height="7" rx="1.5" />
+          <rect x="4" y="13" width="7" height="7" rx="1.5" />
+          <rect x="13" y="13" width="7" height="7" rx="1.5" />
+        }
+        @case ('database') {
+          <ellipse cx="12" cy="6" rx="7" ry="2.8" />
+          <path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6" />
+          <path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8" />
+        }
+        @case ('sun') {
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+        }
+        @case ('moon') {
+          <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+        }
+        @case ('reset') {
+          <path d="M4 12a8 8 0 1 0 2.4-5.7" />
+          <path d="M4 4v4h4" />
+        }
+        @case ('bolt') {
+          <path d="M13 3 5 13.5h6L10 21l8-10.5h-6z" />
+        }
+        @case ('forward') {
+          <path d="m9 6 6 6-6 6" />
+        }
+        @case ('key') {
+          <circle cx="8" cy="15" r="4" />
+          <path d="m10.8 12.2 8.7-8.7" />
+          <path d="m16.5 6.5 2.5 2.5" />
+          <path d="m14 9 2 2" />
+        }
         @case ('in') {
           <path d="M12 5v14" />
           <path d="m6 13 6 6 6-6" />

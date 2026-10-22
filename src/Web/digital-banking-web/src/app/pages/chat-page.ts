@@ -1,4 +1,5 @@
-import { Component, ElementRef, OnInit, ViewChild, effect, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, effect, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../core/auth.service';
 import { CallService } from '../core/call.service';
@@ -14,8 +15,8 @@ import { VoiceNote } from '../ui/voice-note';
   selector: 'app-chat-page',
   imports: [FormsModule, AppModal, AppIcon, ListSkeleton, VoiceNote],
   template: `
-    <section class="chat-page" [class.thread-open]="!!selectedConversation()">
-      @if (!selectedConversation()) {
+    <section class="chat-page" [class.thread-open]="!!selectedConversation()" [class.wide]="wide">
+      @if (!selectedConversation() || wide) {
         <div class="inbox">
           <header class="chat-head">
             <div>
@@ -89,7 +90,8 @@ import { VoiceNote } from '../ui/voice-note';
             }
           </div>
         </div>
-      } @else {
+      }
+      @if (selectedConversation()) {
         <div class="thread">
           <header class="thread-head">
             <button class="round-btn" type="button" (click)="closeThread()" aria-label="Back">
@@ -190,6 +192,13 @@ import { VoiceNote } from '../ui/voice-note';
               </button>
             }
           </footer>
+        </div>
+      }
+      @if (wide && !selectedConversation()) {
+        <div class="thread-empty">
+          <span class="thread-empty-icon"><app-icon name="chat" /></span>
+          <strong>Select a conversation</strong>
+          <p>Pick a customer or staff chat on the left, or start a new one with +.</p>
         </div>
       }
 
@@ -294,6 +303,8 @@ export class ChatPage implements OnInit {
   @ViewChild('messagePane') messagePane?: ElementRef<HTMLDivElement>;
 
   selectedConversation = signal<ChatConversation | null>(null);
+  // The admin console has room for the inbox and the open thread side by side.
+  readonly wide = inject(Router).url.startsWith('/admin');
   composerOpen = signal(false);
   searchText = '';
   composeQuery = '';

@@ -52,7 +52,8 @@
               }
             ],
             "styles": [
-              "src/styles.scss"
+              "src/styles.scss",
+              "src/ops.scss"
             ]
           },
           "configurations": {
@@ -110,7 +111,8 @@
               }
             ],
             "styles": [
-              "src/styles.scss"
+              "src/styles.scss",
+              "src/ops.scss"
             ]
           }
         }
