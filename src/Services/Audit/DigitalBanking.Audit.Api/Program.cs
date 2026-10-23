@@ -2,6 +2,7 @@ using DigitalBanking.Audit.Api.Application;
 using DigitalBanking.Audit.Api.Infrastructure;
 using DigitalBanking.Audit.Api.Repository;
 using DigitalBanking.BuildingBlocks.Messaging;
+using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.Contracts.Events;
 using Microsoft.EntityFrameworkCore;
@@ -9,8 +10,7 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddBankingServiceDefaults(builder.Configuration, "audit-service");
-builder.Services.AddDbContext<AuditDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Audit")));
+builder.Services.AddRegionalDbContext<AuditDbContext>();
 builder.Services.AddScoped<IAuditRepository, AuditRepository>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddEventHandler<AuditEventHandler<CustomerRegisteredEvent>>(nameof(CustomerRegisteredEvent));
@@ -26,5 +26,5 @@ builder.Services.AddEventHandler<AuditEventHandler<NotificationSentEvent>>(nameo
 
 var app = builder.Build();
 app.UseBankingServicePipeline();
-await app.EnsureDatabaseCreatedAsync<AuditDbContext>();
+await app.EnsureRegionalDatabasesAsync<AuditDbContext>("DigitalBanking_Audit");
 app.Run();

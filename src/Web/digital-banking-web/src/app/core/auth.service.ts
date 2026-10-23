@@ -68,6 +68,7 @@ export class AuthService {
     nationalId: string;
     phoneNumber: string;
     address: string;
+    region: string;
   }) {
     return this.http.post<AuthResponse>(`${this.apiUrl}/api/auth/register`, payload).pipe(tap((response) => this.storeSession(response)));
   }

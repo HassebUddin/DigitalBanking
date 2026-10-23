@@ -21,6 +21,11 @@ function verified(status: string) {
   return status === 'Verified' || status === 'Approved';
 }
 
+// Which province database holds the customer.
+function provinceName(region?: string) {
+  return ({ punjab: 'Punjab', sindh: 'Sindh', kp: 'Khyber Pakhtunkhwa', balochistan: 'Balochistan' } as Record<string, string>)[region ?? ''] ?? 'Punjab';
+}
+
 function maskCnic(value?: string) {
   if (!value || value.startsWith('TMP-') || /[a-z]/i.test(value)) return 'Not submitted';
   const digits = value.replace(/\D/g, '');
@@ -166,7 +171,7 @@ export class BankOverviewPage implements OnInit {
         <section class="panel">
           <div class="table-wrap">
             <table class="ops-table">
-              <thead><tr><th>Customer</th><th>Email</th><th>Mobile</th><th>CNIC</th><th>KYC</th><th>Joined</th></tr></thead>
+              <thead><tr><th>Customer</th><th>Email</th><th>Mobile</th><th>CNIC</th><th>Province</th><th>KYC</th><th>Joined</th></tr></thead>
               <tbody>
                 @for (customer of filtered(); track customer.id) {
                   <tr class="clickable" [class.selected]="selected()?.id === customer.id" (click)="selected.set(customer)">
@@ -174,6 +179,7 @@ export class BankOverviewPage implements OnInit {
                     <td>{{ customer.email }}</td>
                     <td class="mono">{{ customer.phoneNumber || '—' }}</td>
                     <td class="mono">{{ maskCnic(customer.nationalId) }}</td>
+                    <td>{{ provinceName(customer.region) }}</td>
                     <td><span class="status-pill" [attr.data-status]="isVerified(customer) ? 'Success' : 'Queued'">{{ isVerified(customer) ? 'Verified' : 'Pending' }}</span></td>
                     <td>{{ when(customer.createdAtUtc) }}</td>
                   </tr>
@@ -193,6 +199,7 @@ export class BankOverviewPage implements OnInit {
             </div>
             <dl class="kv">
               <div><dt>KYC status</dt><dd>{{ customer.kycStatus }}</dd></div>
+              <div><dt>Province (database)</dt><dd>{{ provinceName(customer.region) }}</dd></div>
               <div><dt>Email</dt><dd>{{ customer.email }}</dd></div>
               <div><dt>Mobile</dt><dd>{{ customer.phoneNumber || 'Not on file' }}</dd></div>
               <div><dt>CNIC</dt><dd>{{ maskCnic(customer.nationalId) }}</dd></div>
@@ -221,6 +228,7 @@ export class BankCustomersPage implements OnInit {
   readonly busy = signal(false);
   readonly when = when;
   readonly maskCnic = maskCnic;
+  readonly provinceName = provinceName;
   query = '';
 
   filtered() {

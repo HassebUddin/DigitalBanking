@@ -12,6 +12,9 @@ public sealed class TransactionDbContext(DbContextOptions<TransactionDbContext> 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Lives in each province database (DigitalBanking_Punjab_A, ...) next to the other banking services.
+        modelBuilder.HasDefaultSchema("txn");
+
         modelBuilder.Entity<BankTransaction>(entity =>
         {
             entity.HasKey(transaction => transaction.Id);

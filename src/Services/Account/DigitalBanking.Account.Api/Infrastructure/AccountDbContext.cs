@@ -12,6 +12,9 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Lives in each province database (DigitalBanking_Punjab_A, ...) next to the other banking services.
+        modelBuilder.HasDefaultSchema("account");
+
         modelBuilder.Entity<BankAccount>(entity =>
         {
             entity.HasKey(account => account.Id);

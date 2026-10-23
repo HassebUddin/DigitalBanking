@@ -12,6 +12,9 @@ public sealed class ChatDbContext(DbContextOptions<ChatDbContext> options) : DbC
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Lives in DigitalBanking_Central next to logins and admin data.
+        modelBuilder.HasDefaultSchema("chat");
+
         modelBuilder.Entity<ChatConversation>(entity =>
         {
             entity.HasKey(conversation => conversation.Id);

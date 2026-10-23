@@ -1,13 +1,14 @@
 using System.Text.Json;
 using DigitalBanking.BuildingBlocks.Inbox;
 using DigitalBanking.BuildingBlocks.Messaging;
+using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Contracts;
 using DigitalBanking.Contracts.Events;
 using DigitalBanking.Notification.Api.Infrastructure;
 
 namespace DigitalBanking.Notification.Api.Application;
 
-public abstract class NotificationEventHandler<TEvent>(NotificationDbContext dbContext, NotificationService notificationService)
+public abstract class NotificationEventHandler<TEvent>(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
     : IIntegrationEventHandler
     where TEvent : IntegrationEvent
 {
@@ -23,14 +24,17 @@ public abstract class NotificationEventHandler<TEvent>(NotificationDbContext dbC
             return;
         }
 
-        if (!await InboxGuard.TryBeginAsync(dbContext, integrationEvent.EventId, typeof(TEvent).Name, cancellationToken))
+        // "Already handled" records are kept in the head office database; the notifications go to each user's province.
+        var inbox = db.For(BankRegions.Default);
+        if (!await InboxGuard.TryBeginAsync(inbox, integrationEvent.EventId, typeof(TEvent).Name, cancellationToken))
         {
             return;
         }
 
         HandleEvent(integrationEvent);
-        InboxGuard.MarkProcessed(dbContext, integrationEvent.EventId);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await notificationService.FlushAsync(cancellationToken);
+        InboxGuard.MarkProcessed(inbox, integrationEvent.EventId);
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     protected abstract void HandleEvent(TEvent integrationEvent);
@@ -41,8 +45,8 @@ public abstract class NotificationEventHandler<TEvent>(NotificationDbContext dbC
     }
 }
 
-public sealed class AccountApplicationRejectedNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<AccountApplicationRejectedEvent>(dbContext, notificationService)
+public sealed class AccountApplicationRejectedNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<AccountApplicationRejectedEvent>(db, notificationService)
 {
     protected override void HandleEvent(AccountApplicationRejectedEvent integrationEvent)
     {
@@ -56,8 +60,8 @@ public sealed class AccountApplicationRejectedNotificationHandler(NotificationDb
     }
 }
 
-public sealed class AccountApplicationReopenedNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<AccountApplicationReopenedEvent>(dbContext, notificationService)
+public sealed class AccountApplicationReopenedNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<AccountApplicationReopenedEvent>(db, notificationService)
 {
     protected override void HandleEvent(AccountApplicationReopenedEvent integrationEvent)
     {
@@ -68,8 +72,8 @@ public sealed class AccountApplicationReopenedNotificationHandler(NotificationDb
     }
 }
 
-public sealed class AccountCreatedNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<AccountCreatedEvent>(dbContext, notificationService)
+public sealed class AccountCreatedNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<AccountCreatedEvent>(db, notificationService)
 {
     protected override void HandleEvent(AccountCreatedEvent integrationEvent)
     {
@@ -77,8 +81,8 @@ public sealed class AccountCreatedNotificationHandler(NotificationDbContext dbCo
     }
 }
 
-public sealed class MoneyDepositedNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<MoneyDepositedEvent>(dbContext, notificationService)
+public sealed class MoneyDepositedNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<MoneyDepositedEvent>(db, notificationService)
 {
     protected override void HandleEvent(MoneyDepositedEvent integrationEvent)
     {
@@ -86,8 +90,8 @@ public sealed class MoneyDepositedNotificationHandler(NotificationDbContext dbCo
     }
 }
 
-public sealed class MoneyWithdrawnNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<MoneyWithdrawnEvent>(dbContext, notificationService)
+public sealed class MoneyWithdrawnNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<MoneyWithdrawnEvent>(db, notificationService)
 {
     protected override void HandleEvent(MoneyWithdrawnEvent integrationEvent)
     {
@@ -95,8 +99,8 @@ public sealed class MoneyWithdrawnNotificationHandler(NotificationDbContext dbCo
     }
 }
 
-public sealed class MoneyTransferredNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<MoneyTransferredEvent>(dbContext, notificationService)
+public sealed class MoneyTransferredNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<MoneyTransferredEvent>(db, notificationService)
 {
     protected override void HandleEvent(MoneyTransferredEvent integrationEvent)
     {
@@ -105,8 +109,8 @@ public sealed class MoneyTransferredNotificationHandler(NotificationDbContext db
     }
 }
 
-public sealed class PasswordChangedNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<PasswordChangedEvent>(dbContext, notificationService)
+public sealed class PasswordChangedNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<PasswordChangedEvent>(db, notificationService)
 {
     protected override void HandleEvent(PasswordChangedEvent integrationEvent)
     {
@@ -114,8 +118,8 @@ public sealed class PasswordChangedNotificationHandler(NotificationDbContext dbC
     }
 }
 
-public sealed class PasswordResetNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<PasswordResetRequestedEvent>(dbContext, notificationService)
+public sealed class PasswordResetNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<PasswordResetRequestedEvent>(db, notificationService)
 {
     protected override void HandleEvent(PasswordResetRequestedEvent integrationEvent)
     {
@@ -123,8 +127,8 @@ public sealed class PasswordResetNotificationHandler(NotificationDbContext dbCon
     }
 }
 
-public sealed class CustomerRegisteredNotificationHandler(NotificationDbContext dbContext, NotificationService notificationService)
-    : NotificationEventHandler<CustomerRegisteredEvent>(dbContext, notificationService)
+public sealed class CustomerRegisteredNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<CustomerRegisteredEvent>(db, notificationService)
 {
     protected override void HandleEvent(CustomerRegisteredEvent integrationEvent)
     {

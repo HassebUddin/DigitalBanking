@@ -1,4 +1,5 @@
 using DigitalBanking.BuildingBlocks.Outbox;
+using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Identity.Api.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,9 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Lives in DigitalBanking_Central next to chat and admin data.
+        modelBuilder.HasDefaultSchema("identity");
+
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(user => user.Id);
@@ -21,6 +25,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(user => user.FullName).HasMaxLength(200);
             entity.Property(user => user.PasswordHash).HasMaxLength(500).IsRequired();
             entity.Property(user => user.Role).HasMaxLength(32).IsRequired();
+            entity.Property(user => user.Region).HasMaxLength(32).IsRequired().HasDefaultValue(BankRegions.Default);
         });
 
         modelBuilder.Entity<RefreshToken>(entity =>

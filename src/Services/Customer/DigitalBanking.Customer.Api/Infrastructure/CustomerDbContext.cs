@@ -11,6 +11,9 @@ public sealed class CustomerDbContext(DbContextOptions<CustomerDbContext> option
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Lives in each province database (DigitalBanking_Punjab_A, ...) next to the other banking services.
+        modelBuilder.HasDefaultSchema("customer");
+
         modelBuilder.Entity<CustomerProfile>(entity =>
         {
             entity.HasKey(customer => customer.Id);
@@ -22,6 +25,7 @@ public sealed class CustomerDbContext(DbContextOptions<CustomerDbContext> option
             entity.Property(customer => customer.PhoneNumber).HasMaxLength(32);
             entity.Property(customer => customer.Address).HasMaxLength(500);
             entity.Property(customer => customer.KycStatus).HasMaxLength(32).IsRequired();
+            entity.Property(customer => customer.Region).HasMaxLength(32).IsRequired().HasDefaultValue("punjab");
         });
 
         modelBuilder.Entity<InboxMessage>(entity =>

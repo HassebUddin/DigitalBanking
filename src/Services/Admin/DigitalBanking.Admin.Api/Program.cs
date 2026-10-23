@@ -3,6 +3,7 @@ using DigitalBanking.Admin.Api.Infrastructure;
 using DigitalBanking.Admin.Api.Ops;
 using DigitalBanking.Admin.Api.Ops.Compute;
 using DigitalBanking.Admin.Api.Ops.Data;
+using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.BuildingBlocks.Web;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,8 +13,8 @@ builder.Services.AddBankingServiceDefaults(builder.Configuration, "admin-service
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<AdminGatewayClient>();
 
-builder.Services.AddDbContext<AdminDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Admin")));
+// Admin data (logs, rules, pods, jobs) lives in DigitalBanking_Central next to logins and chat.
+builder.Services.AddCentralDbContext<AdminDbContext>();
 builder.Services.AddSingleton<TrafficRuleStore>();
 builder.Services.AddSingleton<LogStore>();
 builder.Services.AddSingleton<LogQueryService>();
@@ -32,7 +33,8 @@ builder.Services.AddHostedService<LogWriter>();
 
 var app = builder.Build();
 app.UseBankingServicePipeline();
-await app.EnsureDatabaseCreatedAsync<AdminDbContext>();
+// Old ops logs and drill state are not carried over: they are short-lived.
+await app.EnsureCentralDatabaseAsync<AdminDbContext>();
 await RestoreOperationsStateAsync(app);
 app.Run();
 

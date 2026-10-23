@@ -1,5 +1,6 @@
 using DigitalBanking.BuildingBlocks.Authentication;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Contracts;
 using DigitalBanking.Contracts.Events;
 using DigitalBanking.Identity.Api.Contracts;
@@ -30,6 +31,7 @@ public sealed class AuthService(
             Email = email,
             FullName = request.FullName.Trim(),
             Role = UserRoles.Customer,
+            Region = BankRegions.Normalize(request.Region),
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -43,7 +45,8 @@ public sealed class AuthService(
             FullName = request.FullName.Trim(),
             NationalId = request.NationalId.Trim(),
             PhoneNumber = request.PhoneNumber.Trim(),
-            Address = request.Address.Trim()
+            Address = request.Address.Trim(),
+            Region = user.Region
         });
 
         await identityRepository.SaveChangesAsync(cancellationToken);

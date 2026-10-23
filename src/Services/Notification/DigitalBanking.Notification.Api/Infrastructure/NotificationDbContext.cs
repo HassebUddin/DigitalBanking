@@ -14,6 +14,9 @@ public sealed class NotificationDbContext(DbContextOptions<NotificationDbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Lives in each province database (DigitalBanking_Punjab_A, ...) next to the other banking services.
+        modelBuilder.HasDefaultSchema("notify");
+
         modelBuilder.Entity<UserNotification>(entity =>
         {
             entity.HasKey(notification => notification.Id);

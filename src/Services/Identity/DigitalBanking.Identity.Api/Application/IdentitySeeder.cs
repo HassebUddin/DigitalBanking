@@ -24,8 +24,8 @@ public static class IdentitySeeder
     private static async Task EnsureColumnAsync(IdentityDbContext dbContext)
     {
         await dbContext.Database.ExecuteSqlRawAsync("""
-            IF COL_LENGTH('Users', 'FullName') IS NULL
-            ALTER TABLE Users ADD FullName nvarchar(200) NOT NULL CONSTRAINT DF_Users_FullName DEFAULT '';
+            IF COL_LENGTH('[identity].[Users]', 'FullName') IS NULL
+            ALTER TABLE [identity].[Users] ADD FullName nvarchar(200) NOT NULL CONSTRAINT DF_Users_FullName DEFAULT '';
             """);
     }
 

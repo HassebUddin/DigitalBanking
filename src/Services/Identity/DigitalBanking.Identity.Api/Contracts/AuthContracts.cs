@@ -10,6 +10,8 @@ public sealed class RegisterRequest
     public string NationalId { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    // Province: punjab, sindh, kp or balochistan. Decides which regional database holds this customer.
+    public string Region { get; set; } = string.Empty;
 }
 
 public sealed class LoginRequest

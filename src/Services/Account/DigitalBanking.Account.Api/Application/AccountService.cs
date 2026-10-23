@@ -15,7 +15,7 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
         var accountType = string.Equals(request.AccountType, AccountTypes.Current, StringComparison.OrdinalIgnoreCase) ? AccountTypes.Current : AccountTypes.Savings;
         var account = new BankAccount { Id = Guid.NewGuid(), CustomerId = customerId, UserId = userId, AccountNumber = await CreateAccountNumberAsync(cancellationToken), AccountType = accountType, Balance = 0, Currency = "PKR", Status = AccountStatuses.Active, CreatedAtUtc = DateTime.UtcNow };
       
-        accountRepository.AddAccount(account);
+        await accountRepository.AddAccountAsync(account, cancellationToken);
         accountRepository.AddAccountEvent(new AccountCreatedEvent
         {
             AccountId = account.Id,
@@ -91,7 +91,7 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        accountRepository.AddAccountApplication(application);
+        await accountRepository.AddAccountApplicationAsync(application, cancellationToken);
         await accountRepository.SaveAccountChangesAsync(cancellationToken);
         return new AccountApplicationResponse { Id = application.Id, UserId = application.UserId, AccountType = application.AccountType, Purpose = application.Purpose ?? string.Empty, Status = application.Status, ReviewNote = application.ReviewNote ?? string.Empty, HasIdentityDocument = !string.IsNullOrWhiteSpace(application.IdentityDocumentUrl), HasIdentityBackDocument = !string.IsNullOrWhiteSpace(application.IdentityBackDocumentUrl), HasAddressDocument = !string.IsNullOrWhiteSpace(application.AddressDocumentUrl), HasSignature = !string.IsNullOrWhiteSpace(application.SignatureUrl), IdentityDocumentUrl = application.IdentityDocumentUrl, IdentityBackDocumentUrl = application.IdentityBackDocumentUrl, AddressDocumentUrl = application.AddressDocumentUrl, SignatureUrl = application.SignatureUrl, CreatedAccountId = application.CreatedAccountId, CreatedAtUtc = application.CreatedAtUtc };
     }

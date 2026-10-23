@@ -49,14 +49,14 @@ public sealed partial class DataExplorer(IConfiguration configuration, RegionalD
                 await using var connection = new SqlConnection(entry.ConnectionString);
                 await connection.OpenAsync(cancellationToken);
                 await using var command = new SqlCommand("""
-                    SELECT t.name,
+                    SELECT CASE WHEN SCHEMA_NAME(t.schema_id) = 'dbo' THEN t.name ELSE SCHEMA_NAME(t.schema_id) + '.' + t.name END,
                            ISNULL(SUM(CASE WHEN p.index_id IN (0, 1) THEN p.row_count ELSE 0 END), 0),
                            CAST(ISNULL(SUM(p.reserved_page_count), 0) * 8 / 1024.0 AS float)
                     FROM sys.tables t
                     LEFT JOIN sys.dm_db_partition_stats p ON p.object_id = t.object_id
                     WHERE t.is_ms_shipped = 0
-                    GROUP BY t.name
-                    ORDER BY t.name
+                    GROUP BY t.schema_id, t.name
+                    ORDER BY SCHEMA_NAME(t.schema_id), t.name
                     """, connection) { CommandTimeout = 10 };
                 await using var reader = await command.ExecuteReaderAsync(cancellationToken);
                 var tables = new List<TableInfo>();
@@ -122,7 +122,8 @@ public sealed partial class DataExplorer(IConfiguration configuration, RegionalD
             }
         }
 
-        var quoted = $"[dbo].[{tableName.Replace("]", "]]")}]";
+        var (schemaName, _) = SplitTable(table);
+        var quoted = $"[{schemaName.Replace("]", "]]")}].[{tableName.Replace("]", "]]")}]";
         command.CommandText =
             $"SELECT * FROM {quoted} {where} ORDER BY [{sortColumn.Name}] {(descending ? "DESC" : "ASC")} OFFSET {page * size} ROWS FETCH NEXT {size} ROWS ONLY;" +
             (where.Length == 0
@@ -143,7 +144,7 @@ public sealed partial class DataExplorer(IConfiguration configuration, RegionalD
             total = Convert.ToInt64(reader.GetValue(0));
         }
 
-        return new TablePage(entry.Database, tableName, columns, indexes, rows, total, page, size,
+        return new TablePage(entry.Database, table, columns, indexes, rows, total, page, size,
             Math.Round(watch.Elapsed.TotalMilliseconds, 1), entry.Key);
     }
 
@@ -206,6 +207,13 @@ public sealed partial class DataExplorer(IConfiguration configuration, RegionalD
         }
     }
 
+    // "customer.Customers" -> (customer, Customers); a plain name is in dbo (the simulation tables).
+    private static (string Schema, string Name) SplitTable(string table)
+    {
+        var dot = table.IndexOf('.');
+        return dot > 0 ? (table[..dot], table[(dot + 1)..]) : ("dbo", table);
+    }
+
     private static async Task<List<(string Table, ColumnInfo Column)>> ColumnsAsync(SqlConnection connection, string table, CancellationToken cancellationToken)
     {
         await using var command = new SqlCommand("""
@@ -216,10 +224,12 @@ public sealed partial class DataExplorer(IConfiguration configuration, RegionalD
             FROM sys.tables t
             JOIN sys.columns c ON c.object_id = t.object_id
             JOIN sys.types ty ON ty.user_type_id = c.user_type_id
-            WHERE t.name = @table AND SCHEMA_NAME(t.schema_id) = 'dbo'
+            WHERE t.name = @table AND SCHEMA_NAME(t.schema_id) = @schema
             ORDER BY c.column_id
             """, connection);
-        command.Parameters.AddWithValue("@table", table);
+        var (schema, name) = SplitTable(table);
+        command.Parameters.AddWithValue("@schema", schema);
+        command.Parameters.AddWithValue("@table", name);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var columns = new List<(string, ColumnInfo)>();
         while (await reader.ReadAsync(cancellationToken))
@@ -241,11 +251,13 @@ public sealed partial class DataExplorer(IConfiguration configuration, RegionalD
             FROM sys.indexes i
             JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
             JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id
-            WHERE i.object_id = OBJECT_ID(N'dbo.' + QUOTENAME(@table)) AND i.name IS NOT NULL
+            WHERE i.object_id = OBJECT_ID(QUOTENAME(@schema) + N'.' + QUOTENAME(@table)) AND i.name IS NOT NULL
             GROUP BY i.name, i.is_unique, i.type
             ORDER BY i.type, i.name
             """, connection);
-        command.Parameters.AddWithValue("@table", table);
+        var (schema, name) = SplitTable(table);
+        command.Parameters.AddWithValue("@schema", schema);
+        command.Parameters.AddWithValue("@table", name);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var indexes = new List<IndexInfo>();
         while (await reader.ReadAsync(cancellationToken))

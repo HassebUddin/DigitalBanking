@@ -11,22 +11,22 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
     {
         var customer = await customerRepository.GetCustomerByUserIdAsync(userId, cancellationToken);
         if (customer is not null)
-            return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
+            return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc };
 
         customer = await CreateCustomerProfileAsync(userId, email, string.IsNullOrWhiteSpace(fullName) ? email : fullName, await UniqueNationalIdAsync(userId, cancellationToken), string.Empty, string.Empty, cancellationToken);
-        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
+        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc };
     }
 
     public async Task<CustomerResponse> GetCustomerByIdAsync(Guid customerId, CancellationToken cancellationToken)
     {
         var customer = await customerRepository.GetCustomerByIdAsync(customerId, cancellationToken) ?? throw new NotFoundException("Customer profile was not found.");
-        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
+        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc };
     }
 
     public async Task<IReadOnlyList<CustomerResponse>> GetCustomersAsync(CancellationToken cancellationToken)
     {
         var customers = await customerRepository.GetCustomersAsync(cancellationToken);
-        return customers.Select(customer => new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc }).ToList();
+        return customers.Select(customer => new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc }).ToList();
     }
 
     public async Task<CustomerResponse> UpdateCustomerAsync(Guid userId, string email, UpdateCustomerRequest request, CancellationToken cancellationToken)
@@ -35,7 +35,7 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
         if (customer is null)
         {
             customer = await CreateCustomerProfileAsync(userId, email, request.FullName.Trim(), await UniqueNationalIdAsync(userId, cancellationToken), request.PhoneNumber.Trim(), request.Address.Trim(), cancellationToken);
-            return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
+            return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc };
         }
 
         customer.FullName = request.FullName.Trim();
@@ -43,7 +43,7 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
         customer.Address = request.Address.Trim();
         customer.UpdatedAtUtc = DateTime.UtcNow;
         await customerRepository.SaveCustomerChangesAsync(cancellationToken);
-        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
+        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc };
     }
 
     public async Task<CustomerResponse> UpdateKycStatusAsync(Guid customerId, string status, CancellationToken cancellationToken)
@@ -52,7 +52,7 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
         customer.KycStatus = status;
         customer.UpdatedAtUtc = DateTime.UtcNow;
         await customerRepository.SaveCustomerChangesAsync(cancellationToken);
-        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, CreatedAtUtc = customer.CreatedAtUtc };
+        return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc };
     }
 
     public async Task DeleteCustomerAsync(Guid customerId, CancellationToken cancellationToken)
@@ -62,7 +62,7 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
         await customerRepository.SaveCustomerChangesAsync(cancellationToken);
     }
 
-    public async Task CreateCustomerFromRegistrationAsync(Guid userId, string email, string fullName, string nationalId, string phoneNumber, string address, CancellationToken cancellationToken)
+    public async Task CreateCustomerFromRegistrationAsync(Guid userId, string email, string fullName, string nationalId, string phoneNumber, string address, string region, CancellationToken cancellationToken)
     {
         if (await customerRepository.CustomerExistsByUserIdAsync(userId, cancellationToken))
         {
@@ -74,10 +74,10 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
         if (string.IsNullOrWhiteSpace(uniqueNationalId) || nationalIdTaken)
             uniqueNationalId = await UniqueNationalIdAsync(userId, cancellationToken);
 
-        await CreateCustomerProfileAsync(userId, email, fullName, uniqueNationalId, phoneNumber, address, cancellationToken);
+        await CreateCustomerProfileAsync(userId, email, fullName, uniqueNationalId, phoneNumber, address, cancellationToken, region);
     }
 
-    private async Task<CustomerProfile> CreateCustomerProfileAsync(Guid userId, string email, string fullName, string nationalId, string phoneNumber, string address, CancellationToken cancellationToken)
+    private async Task<CustomerProfile> CreateCustomerProfileAsync(Guid userId, string email, string fullName, string nationalId, string phoneNumber, string address, CancellationToken cancellationToken, string region = "")
     {
         var customer = new CustomerProfile
         {
@@ -89,11 +89,12 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
             PhoneNumber = phoneNumber.Trim(),
             Address = address.Trim(),
             KycStatus = "Pending",
+            Region = region,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
         };
 
-        customerRepository.AddCustomer(customer);
+        await customerRepository.AddCustomerAsync(customer, cancellationToken);
         await customerRepository.SaveCustomerChangesAsync(cancellationToken);
         return customer;
     }

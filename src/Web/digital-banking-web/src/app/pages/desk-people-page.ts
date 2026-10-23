@@ -63,7 +63,7 @@ import { holdSkeleton } from '../ui/hold-skeleton';
                   {{ kycLabel(customer.kycStatus) }}
                 </span>
               </div>
-              <p>{{ customer.phoneNumber || customer.email }}</p>
+              <p>{{ customer.phoneNumber || customer.email }} · {{ provinceName(customer.region) }}</p>
               <p>{{ accountSummary(customer) }}</p>
             </div>
           </button>
@@ -244,6 +244,10 @@ export class DeskPeoplePage implements OnInit {
 
   initial(value: string) {
     return (value || 'C').charAt(0).toUpperCase();
+  }
+
+  provinceName(region?: string) {
+    return ({ punjab: 'Punjab', sindh: 'Sindh', kp: 'KP', balochistan: 'Balochistan' } as Record<string, string>)[region ?? ''] ?? 'Punjab';
   }
 
   isVerified(status: string) {

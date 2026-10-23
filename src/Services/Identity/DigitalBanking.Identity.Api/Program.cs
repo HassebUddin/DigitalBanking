@@ -1,3 +1,4 @@
+using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.Identity.Api.Application;
 using DigitalBanking.Identity.Api.Domain;
@@ -9,8 +10,7 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddBankingServiceDefaults(builder.Configuration, "identity-service");
-builder.Services.AddDbContext<IdentityDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Identity")));
+builder.Services.AddCentralDbContext<IdentityDbContext>();
 builder.Services.AddOutboxPublisher<IdentityDbContext>();
 builder.Services.AddScoped<IIdentityRepository, IdentityRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -22,7 +22,7 @@ builder.Services.AddScoped<EmployeeService>();
 
 var app = builder.Build();
 app.UseBankingServicePipeline();
-await app.EnsureDatabaseCreatedAsync<IdentityDbContext>();
+await app.EnsureCentralDatabaseAsync<IdentityDbContext>("DigitalBanking_Identity");
 
 using (var scope = app.Services.CreateScope())
 {

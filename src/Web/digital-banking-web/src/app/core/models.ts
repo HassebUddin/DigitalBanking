@@ -16,6 +16,7 @@ export interface CustomerProfile {
   phoneNumber: string;
   address: string;
   kycStatus: string;
+  region?: string;
   createdAtUtc: string;
 }
 

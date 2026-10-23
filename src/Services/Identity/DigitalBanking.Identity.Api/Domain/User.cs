@@ -1,3 +1,5 @@
+using DigitalBanking.BuildingBlocks.Regions;
+
 namespace DigitalBanking.Identity.Api.Domain;
 
 public sealed class User
@@ -7,6 +9,7 @@ public sealed class User
     public string FullName { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public string Region { get; set; } = BankRegions.Default;
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? LastLoginAtUtc { get; set; }

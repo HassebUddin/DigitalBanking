@@ -9,7 +9,7 @@ public interface ICustomerRepository
     Task<IReadOnlyList<CustomerProfile>> GetCustomersAsync(CancellationToken cancellationToken);
     Task<bool> CustomerExistsByUserIdAsync(Guid userId, CancellationToken cancellationToken);
     Task<bool> CustomerExistsByNationalIdAsync(string nationalId, CancellationToken cancellationToken);
-    void AddCustomer(CustomerProfile customer);
+    Task AddCustomerAsync(CustomerProfile customer, CancellationToken cancellationToken);
     void RemoveCustomer(CustomerProfile customer);
     Task SaveCustomerChangesAsync(CancellationToken cancellationToken);
 }

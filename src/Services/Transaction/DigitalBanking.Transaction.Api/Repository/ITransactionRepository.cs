@@ -6,7 +6,7 @@ namespace DigitalBanking.Transaction.Api.Repository;
 
 public interface ITransactionRepository
 {
-    void AddTransaction(BankTransaction transaction);
+    Task AddTransactionAsync(BankTransaction transaction, Guid ownerUserId, CancellationToken cancellationToken);
     void AddTransferSaga(TransferSaga saga);
     void AddTransactionEvent<TEvent>(TEvent integrationEvent) where TEvent : IntegrationEvent;
     Task SaveTransactionChangesAsync(CancellationToken cancellationToken);

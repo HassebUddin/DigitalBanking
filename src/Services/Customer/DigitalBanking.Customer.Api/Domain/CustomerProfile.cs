@@ -10,6 +10,8 @@ public sealed class CustomerProfile
     public string PhoneNumber { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string KycStatus { get; set; } = "Pending";
+    // Province whose database holds this profile (punjab, sindh, kp, balochistan).
+    public string Region { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 }

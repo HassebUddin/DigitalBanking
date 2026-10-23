@@ -8,6 +8,7 @@ public sealed record CustomerRegisteredEvent : IntegrationEvent
     public string NationalId { get; init; } = string.Empty;
     public string PhoneNumber { get; init; } = string.Empty;
     public string Address { get; init; } = string.Empty;
+    public string Region { get; init; } = string.Empty;
 }
 
 public sealed record UserLoggedInEvent : IntegrationEvent

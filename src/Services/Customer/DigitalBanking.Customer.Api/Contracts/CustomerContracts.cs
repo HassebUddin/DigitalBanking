@@ -17,5 +17,6 @@ public sealed class CustomerResponse
     public string PhoneNumber { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string KycStatus { get; set; } = string.Empty;
+    public string Region { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
 }

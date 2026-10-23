@@ -28,6 +28,15 @@ import { readErrorMessage } from '../core/http-error';
           <label>CNIC / National ID<input name="nationalId" [(ngModel)]="nationalId" required /></label>
           <label>Mobile number<input name="phoneNumber" [(ngModel)]="phoneNumber" required /></label>
           <label>Address<input name="address" [(ngModel)]="address" required /></label>
+          <label>
+            Province
+            <select name="region" [(ngModel)]="region" required>
+              <option value="punjab">Punjab</option>
+              <option value="sindh">Sindh</option>
+              <option value="kp">Khyber Pakhtunkhwa</option>
+              <option value="balochistan">Balochistan</option>
+            </select>
+          </label>
           <label>Password<input name="password" [(ngModel)]="password" type="password" required /></label>
           <button type="submit" [disabled]="busy()">Create account</button>
         </form>
@@ -44,6 +53,8 @@ export class RegisterPage {
   nationalId = '';
   phoneNumber = '';
   address = '';
+  // Decides which province database keeps this customer's data.
+  region = 'punjab';
   password = '';
   busy = signal(false);
   error = signal('');
@@ -64,7 +75,8 @@ export class RegisterPage {
         fullName: this.fullName,
         nationalId: this.nationalId,
         phoneNumber: this.phoneNumber,
-        address: this.address
+        address: this.address,
+        region: this.region
       })
       .subscribe({
         next: () => void this.router.navigateByUrl('/dashboard'),

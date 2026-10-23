@@ -11,6 +11,9 @@ public sealed class AuditDbContext(DbContextOptions<AuditDbContext> options) : D
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Lives in each province database (DigitalBanking_Punjab_A, ...) next to the other banking services.
+        modelBuilder.HasDefaultSchema("audit");
+
         modelBuilder.Entity<AuditLog>(entity =>
         {
             entity.HasKey(log => log.Id);

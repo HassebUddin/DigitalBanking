@@ -46,7 +46,7 @@ public sealed class TransferRequestedHandler(TransactionService transactionServi
             // Make sure the customer still sees the transfer as failed in their history.
             if (await transactionRepository.GetTransactionByIdAsync(request.TransferId, cancellationToken) is null)
             {
-                transactionRepository.AddTransaction(new BankTransaction
+                await transactionRepository.AddTransactionAsync(new BankTransaction
                 {
                     Id = request.TransferId,
                     AccountId = request.SourceAccountId,
@@ -57,7 +57,7 @@ public sealed class TransferRequestedHandler(TransactionService transactionServi
                     ReferenceNumber = $"TXN{DateTime.UtcNow:yyyyMMddHHmmss}{Random.Shared.Next(1000, 9999)}",
                     Description = request.Description,
                     CreatedAtUtc = DateTime.UtcNow
-                });
+                }, request.UserId, cancellationToken);
                 await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
             }
         }
