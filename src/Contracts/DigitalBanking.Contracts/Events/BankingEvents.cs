@@ -82,10 +82,23 @@ public sealed record AccountApplicationReopenedEvent : IntegrationEvent
     public string AccountType { get; init; } = string.Empty;
 }
 
+// Sent by the gateway when the customer chose "send anyway" while the transaction service was down.
+// It waits in RabbitMQ until the transaction service is back, then runs as a normal transfer.
+public sealed record TransferRequestedEvent : IntegrationEvent
+{
+    public Guid TransferId { get; init; }
+    public Guid UserId { get; init; }
+    public Guid SourceAccountId { get; init; }
+    public string DestinationAccountNumber { get; init; } = string.Empty;
+    public decimal Amount { get; init; }
+    public string Description { get; init; } = string.Empty;
+}
+
 public sealed record NotificationSentEvent : IntegrationEvent
 {
     public Guid NotificationId { get; init; }
     public Guid UserId { get; init; }
     public string Channel { get; init; } = string.Empty;
     public string Title { get; init; } = string.Empty;
+    public string Body { get; init; } = string.Empty;
 }

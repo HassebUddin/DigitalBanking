@@ -1,4 +1,5 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { RouterLink } from '@angular/router';
 import { BankingService } from '../core/banking.service';
 import { CustomerProfile } from '../core/models';
@@ -25,9 +26,6 @@ import { holdSkeleton } from '../ui/hold-skeleton';
         <p>{{ pending().length }} waiting for verification</p>
       </div>
 
-      @if (error()) {
-        <p class="error">{{ error() }}</p>
-      }
 
       @if (loading()) {
         <div class="history-skeletons">
@@ -73,6 +71,8 @@ export class DeskKycPage implements OnInit {
   private loadStartedAt = Date.now();
   busyId = signal('');
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error]);
+  private readonly toast = inject(ToastService);
 
   pending = computed(() => this.customers().filter((customer) => customer.kycStatus !== 'Verified' && customer.kycStatus !== 'Approved'));
 
@@ -86,7 +86,10 @@ export class DeskKycPage implements OnInit {
     this.busyId.set(customerId);
     this.error.set('');
     this.bankingService.verifyCustomerKyc(customerId).subscribe({
-      next: () => this.reload(),
+      next: () => {
+        this.toast.success('KYC verified.');
+        this.reload();
+      },
       error: (error) => {
         this.error.set(readErrorMessage(error, 'Unable to verify this customer.'));
         this.busyId.set('');

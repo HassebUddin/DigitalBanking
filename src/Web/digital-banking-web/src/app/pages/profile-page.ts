@@ -1,4 +1,5 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
@@ -43,7 +44,6 @@ import { AppModal } from '../ui/modal';
       <form class="modal-form" (ngSubmit)="changePassword()">
         <label>Current password<input name="currentPassword" type="password" [(ngModel)]="currentPassword" required /></label>
         <label>New password<input name="newPassword" type="password" [(ngModel)]="newPassword" required /></label>
-        @if (passwordError()) { <p class="error">{{ passwordError() }}</p> }
         <button type="submit">Update password</button>
       </form>
     </app-modal>
@@ -55,6 +55,8 @@ export class ProfilePage implements OnInit {
   newPassword = '';
   photo = signal('');
   passwordError = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.passwordError]);
+  private readonly toast = inject(ToastService);
   passwordOpen = signal(false);
 
   constructor(
@@ -80,6 +82,7 @@ export class ProfilePage implements OnInit {
         this.passwordOpen.set(false);
         this.currentPassword = '';
         this.newPassword = '';
+        this.toast.success('Password updated.');
       },
       error: (error) => this.passwordError.set(readErrorMessage(error, 'Unable to change the password.'))
     });

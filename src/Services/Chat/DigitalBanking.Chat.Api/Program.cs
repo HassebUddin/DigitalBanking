@@ -1,4 +1,6 @@
 using DigitalBanking.BuildingBlocks.Http;
+using DigitalBanking.BuildingBlocks.Messaging;
+using DigitalBanking.Contracts.Events;
 using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.Chat.Api.Application;
 using DigitalBanking.Chat.Api.Hubs;
@@ -12,6 +14,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<PresenceTracker>();
 builder.Services.AddScoped<ChatService>();
 builder.Services.AddSingleton<ChatFileStore>();
+builder.Services.AddEventHandler<NotificationPushHandler>(nameof(NotificationSentEvent));
 builder.Services.AddDbContext<ChatDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Chat")));
 builder.Services.Configure<ServiceEndpoints>(builder.Configuration.GetSection(ServiceEndpoints.SectionName));

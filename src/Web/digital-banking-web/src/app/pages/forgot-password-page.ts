@@ -1,4 +1,5 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
@@ -23,7 +24,6 @@ import { readErrorMessage } from '../core/http-error';
       <div class="auth-sheet">
         <form (ngSubmit)="submit()">
           <label>Email<input name="email" [(ngModel)]="email" type="email" required /></label>
-          @if (error()) { <p class="error">{{ error() }}</p> }
           @if (resetCode()) { <p class="success">Reset code: {{ resetCode() }}</p> }
           <button type="submit" [disabled]="busy()">Send reset code</button>
         </form>
@@ -39,6 +39,7 @@ export class ForgotPasswordPage {
   email = '';
   busy = signal(false);
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error]);
   resetCode = signal('');
 
   constructor(

@@ -1,4 +1,5 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { BankingService } from '../core/banking.service';
 import { BankTransaction } from '../core/models';
@@ -52,9 +53,6 @@ interface HistoryGroup {
         <p>{{ visibleTransactions().length }} result{{ visibleTransactions().length === 1 ? '' : 's' }}</p>
       </div>
 
-      @if (error()) {
-        <p class="error">{{ error() }}</p>
-      }
 
       @if (loading()) {
         <div class="history-skeletons">
@@ -115,6 +113,7 @@ export class DeskHistoryPage implements OnInit {
   loading = signal(true);
   private loadStartedAt = Date.now();
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error]);
   searchText = '';
   transactionType = '';
 

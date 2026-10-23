@@ -1,4 +1,5 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
@@ -25,7 +26,6 @@ import { readErrorMessage } from '../core/http-error';
           <label>Email<input name="email" [(ngModel)]="email" type="email" required /></label>
           <label>Reset code<input name="resetCode" [(ngModel)]="resetCode" required /></label>
           <label>New password<input name="newPassword" [(ngModel)]="newPassword" type="password" required /></label>
-          @if (error()) { <p class="error">{{ error() }}</p> }
           <button type="submit" [disabled]="busy()">Update password</button>
         </form>
         <div class="links">
@@ -41,6 +41,8 @@ export class ResetPasswordPage {
   newPassword = '';
   busy = signal(false);
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error]);
+  private readonly toast = inject(ToastService);
 
   constructor(
     private readonly authService: AuthService,
@@ -55,7 +57,10 @@ export class ResetPasswordPage {
     this.busy.set(true);
     this.error.set('');
     this.authService.resetPassword(this.email, this.resetCode, this.newPassword).subscribe({
-      next: () => void this.router.navigateByUrl('/login'),
+      next: () => {
+        this.toast.success('Password updated. Sign in with your new password.');
+        void this.router.navigateByUrl('/login');
+      },
       error: (error) => {
         this.busy.set(false);
         this.error.set(readErrorMessage(error, 'Unable to reset the password.'));

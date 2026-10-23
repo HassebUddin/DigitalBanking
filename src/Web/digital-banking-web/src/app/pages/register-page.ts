@@ -1,4 +1,5 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
@@ -28,7 +29,6 @@ import { readErrorMessage } from '../core/http-error';
           <label>Mobile number<input name="phoneNumber" [(ngModel)]="phoneNumber" required /></label>
           <label>Address<input name="address" [(ngModel)]="address" required /></label>
           <label>Password<input name="password" [(ngModel)]="password" type="password" required /></label>
-          @if (error()) { <p class="error">{{ error() }}</p> }
           <button type="submit" [disabled]="busy()">Create account</button>
         </form>
         <div class="links">
@@ -47,6 +47,7 @@ export class RegisterPage {
   password = '';
   busy = signal(false);
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error]);
 
   constructor(
     private readonly authService: AuthService,

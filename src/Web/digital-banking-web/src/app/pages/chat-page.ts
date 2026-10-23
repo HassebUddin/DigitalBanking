@@ -1,4 +1,5 @@
 import { Component, ElementRef, OnInit, ViewChild, effect, inject, signal } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../core/auth.service';
@@ -32,7 +33,6 @@ import { VoiceNote } from '../ui/voice-note';
           <div class="chat-search">
             <input name="chatSearch" [(ngModel)]="searchText" placeholder="Search chats" />
           </div>
-          @if (error()) { <p class="error chat-error">{{ error() }}</p> }
           <div class="inbox-list">
             @if (!authService.isStaff) {
               <button class="wa-row" type="button" (click)="openSupport()">
@@ -288,7 +288,6 @@ import { VoiceNote } from '../ui/voice-note';
               </button>
             }
           }
-          @if (modalError()) { <p class="error">{{ modalError() }}</p> }
           @if (composeMode === 'group') {
             <button type="button" (click)="createGroup()" [disabled]="selectedGroupMembers.length === 0">Create group</button>
           }
@@ -319,6 +318,7 @@ export class ChatPage implements OnInit {
   employeePassword = '';
   employeeRole = 'InternalEmployee';
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error, () => this.modalError]);
   startingUserId = signal('');
   recording = signal(false);
   recClock = signal('0:00');

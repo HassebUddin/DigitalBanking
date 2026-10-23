@@ -34,11 +34,18 @@ public sealed class TransactionRepository(TransactionDbContext dbContext) : ITra
         return dbContext.Transactions.FirstOrDefaultAsync(transaction => transaction.Id == transactionId, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<TransferSaga>> GetUndoPendingSagasAsync(CancellationToken cancellationToken)
+    // Sagas the recovery job should move forward:
+    // - refunds in progress,
+    // - transfers a request deferred because the account service was down (RetryAfterUtc reached),
+    // - debited transfers whose request died (no RetryAfterUtc, older than 2 minutes so no request still owns them).
+    public async Task<IReadOnlyList<TransferSaga>> GetSagasToRecoverAsync(CancellationToken cancellationToken)
     {
-        var cutoffUtc = DateTime.UtcNow.AddSeconds(-20);
+        var nowUtc = DateTime.UtcNow;
+        var abandonedBeforeUtc = nowUtc.AddMinutes(-2);
         return await dbContext.TransferSagas
-            .Where(saga => saga.State == TransferSagaStates.Compensating || (saga.State == TransferSagaStates.Debited && dbContext.Transactions.Any(transaction => transaction.Id == saga.TransactionId && transaction.CreatedAtUtc <= cutoffUtc)))
+            .Where(saga => saga.State == TransferSagaStates.Compensating
+                || ((saga.State == TransferSagaStates.Started || saga.State == TransferSagaStates.Debited) && saga.RetryAfterUtc != null && saga.RetryAfterUtc <= nowUtc)
+                || (saga.State == TransferSagaStates.Debited && saga.RetryAfterUtc == null && dbContext.Transactions.Any(transaction => transaction.Id == saga.TransactionId && transaction.CreatedAtUtc <= abandonedBeforeUtc)))
             .Take(20)
             .ToListAsync(cancellationToken);
     }

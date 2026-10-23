@@ -1,4 +1,5 @@
 import { Component, OnInit, signal } from '@angular/core';
+import { onLiveUpdate } from '../core/live-update';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 import { BankingService } from '../core/banking.service';
@@ -149,6 +150,10 @@ export class DashboardPage implements OnInit {
     readonly authService: AuthService,
     private readonly bankingService: BankingService
   ) {}
+
+  private readonly live = onLiveUpdate(() => this.ngOnInit());
+
+
 
   ngOnInit() {
     this.photo.set(readProfilePhoto(this.authService.userId()));

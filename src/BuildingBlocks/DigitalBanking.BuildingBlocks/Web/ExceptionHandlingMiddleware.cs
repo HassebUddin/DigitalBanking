@@ -31,6 +31,7 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
             NotFoundException => (HttpStatusCode.NotFound, "not_found"),
             ConflictException => (HttpStatusCode.Conflict, "conflict"),
             BusinessRuleException => (HttpStatusCode.UnprocessableEntity, "business_rule"),
+            ServiceUnavailableException => (HttpStatusCode.ServiceUnavailable, "service_unavailable"),
             _ => (HttpStatusCode.InternalServerError, "server_error")
         };
 

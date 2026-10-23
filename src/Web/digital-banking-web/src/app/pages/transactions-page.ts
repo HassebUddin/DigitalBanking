@@ -1,4 +1,6 @@
-import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, signal, inject } from '@angular/core';
+import { onLiveUpdate } from '../core/live-update';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -86,9 +88,6 @@ interface HistoryGroup {
         }
       </div>
 
-      @if (error()) {
-        <p class="error">{{ error() }}</p>
-      }
 
       @if (loading()) {
         <div class="history-skeletons">
@@ -150,7 +149,6 @@ interface HistoryGroup {
         </div>
         <label>From<input name="fromDate" type="date" [(ngModel)]="fromDate" /></label>
         <label>To<input name="toDate" type="date" [(ngModel)]="toDate" /></label>
-        @if (modalError()) { <p class="error">{{ modalError() }}</p> }
         <button type="submit" [disabled]="statementLoading()">
           @if (statementLoading()) {
             <span class="inline-loader light"><app-icon name="spinner" /> Loading statement</span>
@@ -179,6 +177,7 @@ export class TransactionsPage implements OnInit, OnDestroy {
   loading = signal(false);
   statementLoading = signal(false);
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error, () => this.modalError]);
   modalError = signal('');
   searchText = '';
   transactionType = '';
@@ -215,6 +214,10 @@ export class TransactionsPage implements OnInit, OnDestroy {
   private statementSubscription?: Subscription;
 
   constructor(private readonly bankingService: BankingService) {}
+
+  private readonly live = onLiveUpdate(() => this.ngOnInit());
+
+
 
   ngOnInit() {
     this.bankingService.getAccounts().subscribe((accounts) => this.accounts.set(accounts));

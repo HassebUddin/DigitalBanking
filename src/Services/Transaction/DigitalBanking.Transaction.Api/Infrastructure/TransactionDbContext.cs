@@ -28,6 +28,7 @@ public sealed class TransactionDbContext(DbContextOptions<TransactionDbContext> 
             entity.HasKey(saga => saga.Id);
             entity.Property(saga => saga.State).HasMaxLength(32).IsRequired();
             entity.Property(saga => saga.Amount).HasPrecision(18, 2);
+            entity.Property(saga => saga.DestinationAccountNumber).HasMaxLength(32);
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>

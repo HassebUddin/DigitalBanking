@@ -1,4 +1,5 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../core/auth.service';
 import { BankingService } from '../core/banking.service';
@@ -35,9 +36,6 @@ import { holdSkeleton } from '../ui/hold-skeleton';
         </button>
       </div>
 
-      @if (error()) {
-        <p class="error">{{ error() }}</p>
-      }
 
       @if (view === 'queue') {
         @if (loading()) {
@@ -147,6 +145,8 @@ export class DeskCardsPage implements OnInit {
   private loadStartedAt = Date.now();
   busyId = signal('');
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error]);
+  private readonly toast = inject(ToastService);
   searchText = '';
   view: 'queue' | 'live' = 'queue';
   previewApplication = signal<AccountApplication | null>(null);
@@ -197,10 +197,15 @@ export class DeskCardsPage implements OnInit {
     this.previewApplication.set(application);
   }
 
+  private done(text: string) {
+    this.toast.success(text);
+    this.reload();
+  }
+
   approve(applicationId: string) {
     this.busyId.set(applicationId);
     this.bankingService.updateAccountApplicationStatus(applicationId, 'Approved', 'Approved after document review.').subscribe({
-      next: () => this.reload(),
+      next: () => this.done('Account approved and opened.'),
       error: (error) => this.fail(error)
     });
   }
@@ -208,7 +213,7 @@ export class DeskCardsPage implements OnInit {
   reject(applicationId: string) {
     this.busyId.set(applicationId);
     this.bankingService.updateAccountApplicationStatus(applicationId, 'Rejected', 'Documents need correction.').subscribe({
-      next: () => this.reload(),
+      next: () => this.done('Request rejected.'),
       error: (error) => this.fail(error)
     });
   }
@@ -216,21 +221,21 @@ export class DeskCardsPage implements OnInit {
   reopen(applicationId: string) {
     this.busyId.set(applicationId);
     this.bankingService.updateAccountApplicationStatus(applicationId, 'Pending', 'Returned to review by the bank.').subscribe({
-      next: () => this.reload(),
+      next: () => this.done('Request moved back to review.'),
       error: (error) => this.fail(error)
     });
   }
 
   freeze(accountId: string) {
     this.bankingService.freezeAccount(accountId).subscribe({
-      next: () => this.reload(),
+      next: () => this.done('Account frozen.'),
       error: (error) => this.fail(error)
     });
   }
 
   unfreeze(accountId: string) {
     this.bankingService.unfreezeAccount(accountId).subscribe({
-      next: () => this.reload(),
+      next: () => this.done('Account unfrozen.'),
       error: (error) => this.fail(error)
     });
   }

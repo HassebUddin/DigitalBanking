@@ -68,6 +68,16 @@ export class BankingService {
     return this.http.post<BankTransaction>(`${this.apiUrl}/api/transactions/withdraw-transaction`, { accountId, amount, description });
   }
 
+  // Used when the transaction service is down: the gateway parks the transfer in RabbitMQ until it is back.
+  queueTransfer(sourceAccountId: string, destinationAccountNumber: string, amount: number, description: string) {
+    return this.http.post<{ transferId: string }>(`${this.apiUrl}/api/transfers/queue-transfer`, {
+      sourceAccountId,
+      destinationAccountNumber,
+      amount,
+      description
+    });
+  }
+
   transfer(sourceAccountId: string, destinationAccountNumber: string, amount: number, description: string) {
     return this.http.post<BankTransaction>(`${this.apiUrl}/api/transactions/transfer-transaction`, {
       sourceAccountId,

@@ -1,9 +1,10 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import * as signalR from '@microsoft/signalr';
 import { AuthService } from './auth.service';
 import { ChatCall, ChatConversation, ChatMessage, DirectoryUser, IncomingToast, MessageReceipt } from './chat.models';
 import { holdSkeleton } from '../ui/hold-skeleton';
+import { ToastService } from './toast.service';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {
@@ -22,6 +23,9 @@ export class ChatService {
   readonly directoryLoading = signal(false);
   readonly incomingToast = signal<IncomingToast | null>(null);
   readonly pendingOpen = signal<ChatConversation | null>(null);
+  // Bumped on every pushed notification; pages listen to it to reload (see live-update.ts).
+  readonly liveUpdate = signal(0);
+  private readonly toast = inject(ToastService);
 
   private connection?: signalR.HubConnection;
   private currentConversationId = '';
@@ -67,7 +71,11 @@ export class ChatService {
       }
       this.loadConversations();
     });
-    this.connection.on('MessageReceipts', (receipts: MessageReceipt[]) => this.applyReceipts(receipts));
+    this.connection.on('NotificationReceived', (notification: { title: string; body: string }) => {
+      this.toast.success(notification.body ? `${notification.title}: ${notification.body}` : notification.title);
+      this.liveUpdate.update((value) => value + 1);
+    });
+    this.connection.on('MessageReceipts',(receipts: MessageReceipt[]) => this.applyReceipts(receipts));
     this.connection.on('UserTyping', (payload: { conversationId: string; displayName: string }) => {
       if (payload.conversationId === this.currentConversationId) {
         this.typingName.set(payload.displayName);

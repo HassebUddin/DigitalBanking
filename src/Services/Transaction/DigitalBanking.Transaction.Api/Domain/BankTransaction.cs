@@ -22,6 +22,10 @@ public sealed class TransferSaga
     public Guid DestinationAccountId { get; set; }
     public decimal Amount { get; set; }
     public string State { get; set; } = TransferSagaStates.Started;
+    // Set when the transfer was accepted while the account service was down (DestinationAccountId is then empty).
+    public string? DestinationAccountNumber { get; set; }
+    // Set when the request handed the transfer to the recovery job; null while a request is still working on it.
+    public DateTime? RetryAfterUtc { get; set; }
 }
 
 public static class TransactionTypes

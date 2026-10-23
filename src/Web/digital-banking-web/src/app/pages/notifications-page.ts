@@ -1,4 +1,5 @@
 import { Component, OnInit, signal } from '@angular/core';
+import { onLiveUpdate } from '../core/live-update';
 import { RouterLink } from '@angular/router';
 import { BankingService } from '../core/banking.service';
 import { UserNotification } from '../core/models';
@@ -67,6 +68,10 @@ export class NotificationsPage implements OnInit {
   private loadStartedAt = Date.now();
 
   constructor(private readonly bankingService: BankingService) {}
+
+  private readonly live = onLiveUpdate(() => this.ngOnInit());
+
+
 
   ngOnInit() {
     this.reload();

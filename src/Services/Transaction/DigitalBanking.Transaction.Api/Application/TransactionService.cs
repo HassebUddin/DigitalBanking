@@ -60,15 +60,26 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
     }
 
-    public async Task<TransactionResponse> TransferTransactionAsync(Guid userId, bool isAdmin, TransferRequest request, CancellationToken cancellationToken)
+    public async Task<TransactionResponse> TransferTransactionAsync(Guid userId, bool isAdmin, TransferRequest request, CancellationToken cancellationToken, Guid? transferId = null)
     {
-        var sourceAccount = await accountLedgerClient.GetInternalEmployeeAccountByIdAsync(request.SourceAccountId, cancellationToken);
-        if (!isAdmin && sourceAccount.UserId != userId) throw new ForbiddenException("You cannot use this account.");
-        var destinationAccount = await accountLedgerClient.GetByAccountNumberAsync(request.DestinationAccountNumber.Trim(), cancellationToken);
+        var destinationNumber = request.DestinationAccountNumber.Trim();
+        AccountSnapshot sourceAccount;
+        AccountSnapshot destinationAccount;
+        try
+        {
+            sourceAccount = await accountLedgerClient.GetInternalEmployeeAccountByIdAsync(request.SourceAccountId, cancellationToken);
+            if (!isAdmin && sourceAccount.UserId != userId) throw new ForbiddenException("You cannot use this account.");
+            destinationAccount = await accountLedgerClient.GetByAccountNumberAsync(destinationNumber, cancellationToken);
+        }
+        catch (ServiceUnavailableException)
+        {
+            // Account service is down: accept the transfer; the recovery job checks the accounts and moves the money once it is back.
+            return await QueueTransferAsync(userId, request, destinationNumber, transferId ?? Guid.NewGuid(), cancellationToken);
+        }
         if (sourceAccount.Id == destinationAccount.Id) throw new ValidationException("Source and destination accounts must be different.");
 
-        var transaction = new BankTransaction { Id = Guid.NewGuid(), AccountId = sourceAccount.Id, UserId = userId, CounterpartyAccountId = destinationAccount.Id, TransactionType = TransactionTypes.Transfer, Amount = request.Amount, Status = TransactionStatuses.Pending, ReferenceNumber = $"TXN{DateTime.UtcNow:yyyyMMddHHmmss}{Random.Shared.Next(1000, 9999)}", Description = request.Description.Trim(), CreatedAtUtc = DateTime.UtcNow };
-        var saga = new TransferSaga { Id = Guid.NewGuid(), TransactionId = transaction.Id, SourceAccountId = sourceAccount.Id, DestinationAccountId = destinationAccount.Id, Amount = request.Amount, State = TransferSagaStates.Started };
+        var transaction = new BankTransaction { Id = transferId ?? Guid.NewGuid(), AccountId = sourceAccount.Id, UserId = userId, CounterpartyAccountId = destinationAccount.Id, TransactionType = TransactionTypes.Transfer, Amount = request.Amount, Status = TransactionStatuses.Pending, ReferenceNumber = $"TXN{DateTime.UtcNow:yyyyMMddHHmmss}{Random.Shared.Next(1000, 9999)}", Description = request.Description.Trim(), CreatedAtUtc = DateTime.UtcNow };
+        var saga = new TransferSaga { Id = Guid.NewGuid(), TransactionId = transaction.Id, SourceAccountId = sourceAccount.Id, DestinationAccountId = destinationAccount.Id, DestinationAccountNumber = destinationNumber, Amount = request.Amount, State = TransferSagaStates.Started };
         transactionRepository.AddTransaction(transaction);
         transactionRepository.AddTransferSaga(saga);
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
@@ -80,6 +91,10 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
                 await accountLedgerClient.DebitAsync(sourceAccount.Id, request.Amount, transaction.ReferenceNumber, cancellationToken);
                 saga.State = TransferSagaStates.Debited;
                 await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
+            }
+            catch (ServiceUnavailableException)
+            {
+                return await DeferTransferAsync(transaction, saga, cancellationToken);
             }
             catch
             {
@@ -100,6 +115,11 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
                 transactionRepository.AddTransactionEvent(new MoneyTransferredEvent { TransactionId = transaction.Id, SourceAccountId = sourceAccount.Id, DestinationAccountId = destinationAccount.Id, SourceUserId = sourceAccount.UserId, DestinationUserId = destinationAccount.UserId, Amount = request.Amount, ReferenceNumber = transaction.ReferenceNumber });
                 await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
                 return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+            }
+            catch (ServiceUnavailableException)
+            {
+                // Money already left the sender; finish the credit later instead of refunding.
+                return await DeferTransferAsync(transaction, saga, cancellationToken);
             }
             catch
             {
@@ -129,6 +149,27 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         }
 
         throw new BusinessRuleException("Transfer failed.");
+    }
+
+    private async Task<TransactionResponse> QueueTransferAsync(Guid userId, TransferRequest request, string destinationNumber, Guid transactionId, CancellationToken cancellationToken)
+    {
+        if (request.Amount <= 0) throw new ValidationException("Amount must be greater than zero.");
+        if (string.IsNullOrWhiteSpace(destinationNumber)) throw new ValidationException("Destination account number is required.");
+
+        var transaction = new BankTransaction { Id = transactionId, AccountId = request.SourceAccountId, UserId = userId, TransactionType = TransactionTypes.Transfer, Amount = request.Amount, Status = TransactionStatuses.Pending, ReferenceNumber = $"TXN{DateTime.UtcNow:yyyyMMddHHmmss}{Random.Shared.Next(1000, 9999)}", Description = request.Description.Trim(), CreatedAtUtc = DateTime.UtcNow };
+        var saga = new TransferSaga { Id = Guid.NewGuid(), TransactionId = transaction.Id, SourceAccountId = request.SourceAccountId, DestinationAccountId = Guid.Empty, DestinationAccountNumber = destinationNumber, Amount = request.Amount, State = TransferSagaStates.Started, RetryAfterUtc = DateTime.UtcNow.AddSeconds(5) };
+        transactionRepository.AddTransaction(transaction);
+        transactionRepository.AddTransferSaga(saga);
+        await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
+        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+    }
+
+    // Hands an in-flight transfer to the recovery job, which retries it every few seconds.
+    private async Task<TransactionResponse> DeferTransferAsync(BankTransaction transaction, TransferSaga saga, CancellationToken cancellationToken)
+    {
+        saga.RetryAfterUtc = DateTime.UtcNow.AddSeconds(5);
+        await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
+        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
     }
 
     public async Task<IReadOnlyList<TransactionResponse>> GetTransactionsAsync(Guid userId, bool isAdmin, TransactionSearchRequest request, CancellationToken cancellationToken)

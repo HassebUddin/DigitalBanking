@@ -1,4 +1,7 @@
+using DigitalBanking.BuildingBlocks.Authentication;
+using DigitalBanking.BuildingBlocks.Messaging;
 using DigitalBanking.BuildingBlocks.Observability;
+using DigitalBanking.Contracts.Events;
 using DigitalBanking.Gateway;
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
@@ -18,11 +21,18 @@ builder.Services.AddBankingTelemetry(
     enforceTrafficRules: true,
     targetResolver: context => context.GetEndpoint()?.Metadata.GetMetadata<RouteModel>()?.Cluster?.ClusterId);
 
+// Lets the gateway accept a transfer while the transaction service is down (see /api/transfers/queue-transfer).
+builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+builder.Services.AddSingleton<RabbitMqConnection>();
+builder.Services.AddSingleton<IEventPublisher, RabbitMqEventPublisher>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy =>
     {
-        policy.WithOrigins("http://localhost:4200", "http://localhost", "capacitor://localhost", "ionic://localhost")
+        // Allow every origin (any site, phone app, tunnel) to call the API.
+        policy.SetIsOriginAllowed(_ => true)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -50,5 +60,39 @@ telemetry.DestinationReporter = () => proxyState.GetClusters()
 app.UseCors("frontend");
 app.UseWebSockets();
 app.UseBankingTelemetry();
+app.UseAuthentication();
+app.UseAuthorization();
+
+// "Send anyway": the transaction service is down, so park the transfer in RabbitMQ.
+// The transaction-service queue holds it until that service starts again and runs it.
+app.MapPost("/api/transfers/queue-transfer", async (QueueTransferRequest request, CurrentUser currentUser, IEventPublisher publisher, CancellationToken cancellationToken) =>
+{
+    if (currentUser.IsStaff) return Results.Json(new { code = "forbidden", message = "Only customers can send transfers." }, statusCode: StatusCodes.Status403Forbidden);
+    if (request.Amount <= 0) return Results.BadRequest(new { code = "validation_error", message = "Amount must be greater than zero." });
+    if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber)) return Results.BadRequest(new { code = "validation_error", message = "Destination account number is required." });
+
+    var transferId = Guid.NewGuid();
+    try
+    {
+        await publisher.PublishAsync(new TransferRequestedEvent
+        {
+            TransferId = transferId,
+            UserId = currentUser.UserId,
+            SourceAccountId = request.SourceAccountId,
+            DestinationAccountNumber = request.DestinationAccountNumber.Trim(),
+            Amount = request.Amount,
+            Description = (request.Description ?? string.Empty).Trim()
+        }, cancellationToken);
+    }
+    catch (Exception)
+    {
+        return Results.Json(new { code = "service_unavailable", message = "The bank cannot accept transfers right now. Please try again later." }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    return Results.Ok(new { transferId });
+}).RequireAuthorization();
+
 app.MapReverseProxy();
 app.Run();
+
+record QueueTransferRequest(Guid SourceAccountId, string DestinationAccountNumber, decimal Amount, string? Description);

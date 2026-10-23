@@ -1,4 +1,5 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { BankingService } from '../core/banking.service';
@@ -40,9 +41,6 @@ import { holdSkeleton } from '../ui/hold-skeleton';
         <p>{{ visibleCustomers().length }} customer{{ visibleCustomers().length === 1 ? '' : 's' }}</p>
       </div>
 
-      @if (error()) {
-        <p class="error">{{ error() }}</p>
-      }
 
       @if (loading()) {
         <app-list-skeleton />
@@ -145,7 +143,6 @@ import { holdSkeleton } from '../ui/hold-skeleton';
               </div>
             </article>
           }
-          @if (modalError()) { <p class="error">{{ modalError() }}</p> }
           <button type="button" (click)="messageCustomer(customer)" [disabled]="messaging()">
             {{ messaging() ? 'Opening chat...' : 'Message customer' }}
           </button>
@@ -169,6 +166,7 @@ export class DeskPeoplePage implements OnInit {
   private loadStartedAt = Date.now();
   messaging = signal(false);
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error, () => this.modalError]);
   modalError = signal('');
   searchText = '';
   kycFilter = '';

@@ -1,4 +1,5 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { resolveApiUrl, saveApiUrl } from '../core/api-url';
@@ -34,7 +35,6 @@ import { DemoLogins } from '../shared/demo-logins';
         <form (ngSubmit)="submit()">
           <label>Email<input name="email" [(ngModel)]="email" type="email" required /></label>
           <label>Password<input name="password" [(ngModel)]="password" type="password" required /></label>
-          @if (error()) { <p class="error">{{ error() }}</p> }
           <button type="submit" [disabled]="busy()">Login</button>
         </form>
         <app-demo-logins defaultTab="customer" (fill)="email = $event.email; password = $event.password" />
@@ -57,6 +57,7 @@ export class LoginPage {
   apiUrl = resolveApiUrl();
   busy = signal(false);
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error]);
 
   constructor(
     private readonly authService: AuthService,

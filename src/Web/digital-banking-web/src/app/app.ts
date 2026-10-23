@@ -3,16 +3,18 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { MessageToast } from './ui/message-toast';
+import { ToastHost } from './ui/toast-host';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, MessageToast],
+  imports: [RouterOutlet, MessageToast, ToastHost],
   template: `
     <!-- Customers and staff get the phone frame; the admin console uses the full web screen. -->
     <div class="web-preview" [class.web-wide]="wide()">
       <div class="native-app" [class.web-wide]="wide()">
         <router-outlet />
         <app-message-toast />
+        <app-toast-host />
       </div>
     </div>
   `

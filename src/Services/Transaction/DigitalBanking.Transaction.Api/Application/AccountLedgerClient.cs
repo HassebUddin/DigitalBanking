@@ -10,7 +10,7 @@ public sealed class AccountLedgerClient(HttpClient httpClient, IConfiguration co
     public async Task<AccountSnapshot> GetInternalEmployeeAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(HttpMethod.Get, $"/api/accounts/get-internal-employee-account-by-id/{accountId}");
-        var response = await httpClient.SendAsync(request, cancellationToken);
+        var response = await SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             throw new NotFoundException("Account was not found.");
@@ -23,7 +23,7 @@ public sealed class AccountLedgerClient(HttpClient httpClient, IConfiguration co
     public async Task<AccountSnapshot> GetByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(HttpMethod.Get, $"/api/accounts/get-account-by-account-number/{accountNumber}");
-        var response = await httpClient.SendAsync(request, cancellationToken);
+        var response = await SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             throw new NotFoundException("Destination account was not found.");
@@ -47,7 +47,7 @@ public sealed class AccountLedgerClient(HttpClient httpClient, IConfiguration co
     {
         using var request = CreateRequest(HttpMethod.Post, $"/api/accounts/internal/{accountId}/{action}");
         request.Content = JsonContent.Create(new { amount, referenceNumber });
-        var response = await httpClient.SendAsync(request, cancellationToken);
+        var response = await SendAsync(request, cancellationToken);
         if (response.IsSuccessStatusCode)
         {
             return;
@@ -56,6 +56,31 @@ public sealed class AccountLedgerClient(HttpClient httpClient, IConfiguration co
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         throw new BusinessRuleException(ReadErrorMessage(body));
     }
+
+    // Account service down, refusing connections or failing with 5xx -> ServiceUnavailableException,
+    // so callers can keep the transfer and retry instead of treating it as a business failure.
+    private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        HttpResponseMessage response;
+        try
+        {
+            response = await httpClient.SendAsync(request, cancellationToken);
+        }
+        catch (Exception exception) when (exception is HttpRequestException || (exception is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            throw new ServiceUnavailableException(AccountServiceDown);
+        }
+
+        if ((int)response.StatusCode >= 500)
+        {
+            response.Dispose();
+            throw new ServiceUnavailableException(AccountServiceDown);
+        }
+
+        return response;
+    }
+
+    private const string AccountServiceDown = "The account service is temporarily unavailable.";
 
     private static string ReadErrorMessage(string body)
     {

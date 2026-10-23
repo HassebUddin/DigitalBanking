@@ -66,7 +66,8 @@ public sealed class NotificationService(NotificationDbContext dbContext)
                 NotificationId = notification.Id,
                 UserId = userId,
                 Channel = channel,
-                Title = title
+                Title = title,
+                Body = body
             });
         }
     }

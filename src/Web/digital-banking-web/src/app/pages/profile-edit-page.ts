@@ -1,4 +1,5 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
@@ -36,8 +37,6 @@ import { AppIcon } from '../ui/icon';
         <label>Full name<input name="fullName" [(ngModel)]="fullName" required /></label>
         <label>Mobile number<input name="phoneNumber" [(ngModel)]="phoneNumber" /></label>
         <label>Address<input name="address" [(ngModel)]="address" /></label>
-        @if (message()) { <p class="success">{{ message() }}</p> }
-        @if (error()) { <p class="error">{{ error() }}</p> }
         <button type="submit">Save details</button>
       </form>
     </section>
@@ -50,6 +49,7 @@ export class ProfileEditPage implements OnInit {
   photo = signal('');
   message = signal('');
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error], [() => this.message]);
 
   constructor(
     private readonly bankingService: BankingService,

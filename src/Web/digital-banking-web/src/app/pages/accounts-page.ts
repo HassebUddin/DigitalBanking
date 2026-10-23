@@ -1,4 +1,6 @@
-import { Component, OnInit, ViewChild, signal } from '@angular/core';
+import { Component, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { onLiveUpdate } from '../core/live-update';
+import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { BankingService } from '../core/banking.service';
 import { AccountApplication, BankAccount } from '../core/models';
@@ -35,18 +37,6 @@ import { AppIcon } from '../ui/icon';
         @if (loading()) {
           <app-list-skeleton [count]="3" [amount]="true" />
         } @else {
-          @if (message()) {
-            <article class="flash-ok rise">
-              <span class="flash-ico"><app-icon name="ticks" /></span>
-              <div>
-                <strong>Request sent</strong>
-                <p>{{ message() }}</p>
-              </div>
-            </article>
-          }
-          @if (error()) {
-            <p class="error">{{ error() }}</p>
-          }
 
           @if (accounts().length === 0 && waiting().length === 0 && rejected().length === 0) {
             <article class="empty-card history-empty rise">
@@ -67,7 +57,13 @@ import { AppIcon } from '../ui/icon';
               <div>
                 <p class="balance-label">{{ account.status === 'Active' ? 'Available balance' : account.status }}</p>
                 <p class="balance">{{ formatMoney(account.balance, account.currency) }}</p>
-                <p class="acct">•••• {{ lastFour(account.accountNumber) }}</p>
+                <p class="acct">
+                  •••• {{ lastFour(account.accountNumber) }}
+                  <button class="copy-acct" type="button" (click)="copyNumber(account.accountNumber)"
+                    [attr.aria-label]="'Copy account number ' + account.accountNumber">
+                    <app-icon [name]="copied() === account.accountNumber ? 'check' : 'copy'" />
+                  </button>
+                </p>
               </div>
               @if (account.status === 'Active') {
                 <div class="wallet-actions">
@@ -158,7 +154,6 @@ import { AppIcon } from '../ui/icon';
               <p>Photo of the back side of your CNIC</p>
             }
           </label>
-          @if (modalError()) { <p class="error">{{ modalError() }}</p> }
           <button type="submit">Next: signature</button>
           <button class="secondary" type="button" (click)="step.set(1)">Back</button>
         </form>
@@ -175,7 +170,6 @@ import { AppIcon } from '../ui/icon';
           } @else {
             <app-signature-pad />
           }
-          @if (modalError()) { <p class="error">{{ modalError() }}</p> }
           <button type="submit">Next: declaration</button>
           <button class="secondary" type="button" (click)="step.set(2)">Back</button>
         </form>
@@ -204,7 +198,6 @@ import { AppIcon } from '../ui/icon';
             <input name="terms" type="checkbox" [(ngModel)]="termsAccepted" />
             I have read this declaration and accept Digital Bank account policy.
           </label>
-          @if (modalError()) { <p class="error">{{ modalError() }}</p> }
           <button type="submit" [disabled]="!termsAccepted || submitting()">
             {{ submitting() ? 'Sending request…' : 'Submit for approval' }}
           </button>
@@ -219,7 +212,6 @@ import { AppIcon } from '../ui/icon';
         <label>Amount (PKR)
           <input name="amount" type="number" min="1" [(ngModel)]="amount" required />
         </label>
-        @if (modalError()) { <p class="error">{{ modalError() }}</p> }
         <button type="submit">{{ moneyMode() === 'deposit' ? 'Deposit' : 'Withdraw' }}</button>
       </form>
     </app-modal>
@@ -248,12 +240,16 @@ export class AccountsPage implements OnInit {
   identityBackFileName = signal('');
   amount = 0;
   error = signal('');
+  private readonly toasts = inject(ToastService).watch([() => this.error, () => this.modalError], [() => this.message]);
   modalError = signal('');
   message = signal('');
   loading = signal(true);
   private loadStartedAt = Date.now();
 
   constructor(private readonly bankingService: BankingService) {}
+
+  private readonly live = onLiveUpdate(() => this.ngOnInit());
+
 
   ngOnInit() {
     this.reload();
@@ -356,6 +352,14 @@ export class AccountsPage implements OnInit {
     return this.applications().filter((application) => application.status === 'Rejected');
   }
 
+  readonly copied = signal('');
+
+  copyNumber(accountNumber: string) {
+    void navigator.clipboard?.writeText(accountNumber);
+    this.copied.set(accountNumber);
+    setTimeout(() => this.copied.set(''), 2000);
+  }
+
   lastFour(accountNumber: string) {
     return (accountNumber || '').slice(-4);
   }
@@ -395,7 +399,7 @@ export class AccountsPage implements OnInit {
         next: (application) => {
           this.submitting.set(false);
           this.requestOpen.set(false);
-          this.message.set('Bank admin will activate this account after document review.');
+          this.message.set('Request sent. The bank will activate your account after document review.');
           this.applications.update((list) => [application, ...list.filter((item) => item.id !== application.id)]);
           this.reload();
         },

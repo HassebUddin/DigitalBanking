@@ -11,7 +11,7 @@ public interface ITransactionRepository
     void AddTransactionEvent<TEvent>(TEvent integrationEvent) where TEvent : IntegrationEvent;
     Task SaveTransactionChangesAsync(CancellationToken cancellationToken);
     Task<BankTransaction?> GetTransactionByIdAsync(Guid transactionId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<TransferSaga>> GetUndoPendingSagasAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<TransferSaga>> GetSagasToRecoverAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<BankTransaction>> GetTransactionsAsync(Guid userId, bool isAdmin, TransactionSearchRequest request, CancellationToken cancellationToken);
     Task<IReadOnlyList<BankTransaction>> GetTransactionsByAccountAsync(Guid accountId, DateTime fromDateUtc, DateTime toDateUtc, CancellationToken cancellationToken);
 }
