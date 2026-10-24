@@ -322,6 +322,23 @@ public sealed class RegionalDataPlane(
         END
         """;
 
+    // Branch ids of a city. Normally filled when the nodes are opened at startup; if the province's server was
+    // still starting then, they are computed here with the same deterministic numbering as SeedBranchesAsync.
+    public static int[] BranchIdsFor(RegionCluster cluster, string city)
+    {
+        if (cluster.BranchesByCity.TryGetValue(city, out var known))
+        {
+            return known;
+        }
+
+        var cityIndex = cluster.Province.Cities.ToList().FindIndex(item => string.Equals(item.Name, city, StringComparison.OrdinalIgnoreCase));
+        var weight = cityIndex >= 0 ? cluster.Province.Cities[cityIndex].Weight : 1;
+        var count = Math.Clamp((int)Math.Round(Math.Sqrt(weight) * 3), 2, BranchAreas.Length);
+        var ids = Enumerable.Range(1, count).Select(index => (cityIndex + 1) * 100 + index).ToArray();
+        cluster.BranchesByCity[city] = ids;
+        return ids;
+    }
+
     private static async Task SeedBranchesAsync(SqlConnection connection, RegionCluster cluster, CancellationToken cancellationToken)
     {
         // Deterministic so both nodes of a cluster hold identical branch rows.

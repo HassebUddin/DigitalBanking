@@ -156,7 +156,7 @@ public sealed class CustomerBatchJobs(
             {
                 var city = job.Batch.City ?? PakistanGeo.PickWeighted(province.Cities, item => item.Weight, random).Name;
                 perCity[city] = perCity.GetValueOrDefault(city) + 1;
-                rows.Add(CustomerRow(province, city, cluster.BranchesByCity[city], job.Batch.Id, random, createdAt));
+                rows.Add(CustomerRow(province, city, RegionalDataPlane.BranchIdsFor(cluster, city), job.Batch.Id, random, createdAt));
             }
 
             return new Chunk(rows, perCity);
