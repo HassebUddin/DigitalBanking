@@ -178,7 +178,7 @@ const PRESETS = [10_000, 100_000, 1_000_000, 10_000_000];
           <div class="table-wrap">
             <table class="ops-table">
               <thead>
-                <tr><th>Customer no.</th><th>Name</th><th>CNIC</th><th>Mobile</th><th>Location</th><th>Branch</th><th>Account</th><th class="num">Balance</th><th>Served by</th></tr>
+                <tr><th>Customer no.</th><th>Name</th><th>CNIC</th><th>Mobile</th><th>Location</th><th>Account no.</th><th>Account</th><th class="num">Balance</th><th>Served by</th></tr>
               </thead>
               <tbody>
                 @for (hit of r.items; track hit.id) {

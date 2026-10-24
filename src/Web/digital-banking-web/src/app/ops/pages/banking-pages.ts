@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { BankingService } from '../../core/banking.service';
+import { BankingService, queuedMessage } from '../../core/banking.service';
 import { readErrorMessage } from '../../core/http-error';
 import { AccountApplication, AuditLog, BankAccount, BankTransaction, CustomerProfile, DashboardSummary } from '../../core/models';
 import { AppIcon } from '../../ui/icon';
@@ -26,7 +26,8 @@ function verified(status: string) {
 
 // Which province database holds the customer.
 function provinceName(region?: string) {
-  return ({ punjab: 'Punjab', sindh: 'Sindh', kp: 'Khyber Pakhtunkhwa', balochistan: 'Balochistan' } as Record<string, string>)[region ?? ''] ?? 'Punjab';
+  // Unknown is shown as such, never guessed as Punjab (that hid a missing field once).
+  return ({ punjab: 'Punjab', sindh: 'Sindh', kp: 'Khyber Pakhtunkhwa', balochistan: 'Balochistan' } as Record<string, string>)[region ?? ''] ?? '—';
 }
 
 function maskCnic(value?: string) {
@@ -459,7 +460,7 @@ export class BankAccountsPage implements OnInit {
   review(application: AccountApplication, status: string, note: string) {
     this.busy.set(true);
     this.banking.updateAccountApplicationStatus(application.id, status, note).subscribe({
-      next: () => this.done(`Application ${status.toLowerCase()}`),
+      next: (result) => this.done(queuedMessage(result) ?? `Application ${status.toLowerCase()}`),
       error: (error) => this.failed(error)
     });
   }

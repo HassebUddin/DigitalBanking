@@ -107,11 +107,11 @@ public sealed partial class SqlCustomerSearch(RegionalDataPlane dataPlane) : ICu
             var where = filters.Count == 0 ? string.Empty : "WHERE " + string.Join(" AND ", filters);
             // Total: an unfiltered count comes from the table's row statistics (instant even at 50M rows).
             var count = filters.Count == 0
-                ? "SELECT ISNULL(SUM(row_count), 0) FROM sys.dm_db_partition_stats WHERE object_id = OBJECT_ID('dbo.Customers') AND index_id IN (0, 1);"
-                : $"SELECT COUNT_BIG(*) FROM dbo.Customers c {where};";
+                ? "SELECT ISNULL(SUM(row_count), 0) FROM sys.dm_db_partition_stats WHERE object_id = OBJECT_ID('customer.Customers') AND index_id IN (0, 1);"
+                : $"SELECT COUNT_BIG(*) FROM {BankCustomers} c {where};";
             command.CommandText = count +
-                $"SELECT c.Id, c.CustomerNo, c.FullName, c.Cnic, c.Phone, c.Gender, c.City, ISNULL(b.Name, ''), c.AccountType, c.Balance, c.CreatedAtUtc " +
-                $"FROM dbo.Customers c LEFT JOIN dbo.Branches b ON b.Id = c.BranchId {where} ORDER BY c.{plan.OrderBy}{(plan.OrderBy == "Id" ? " DESC" : string.Empty)} " +
+                $"SELECT c.Id, c.CustomerNo, c.FullName, c.Cnic, c.Phone, c.Gender, c.City, c.AccountNumber, c.AccountType, c.Balance, c.CreatedAtUtc " +
+                $"FROM {BankCustomers} c {where} ORDER BY c.{plan.OrderBy}{(plan.OrderBy == "Id" ? " DESC" : string.Empty)} " +
                 $"OFFSET {skip} ROWS FETCH NEXT {take} ROWS ONLY";
 
             var hits = new List<CustomerHit>();
@@ -143,7 +143,7 @@ public sealed partial class SqlCustomerSearch(RegionalDataPlane dataPlane) : ICu
 
         if (CustomerNumber().Match(text) is { Success: true } number)
         {
-            return new SearchPlan("c.Id = @p", long.Parse(number.Groups[2].Value), "Id", "Clustered index seek on customer number");
+            return new SearchPlan("c.CustomerNo = @p", $"{number.Groups[1].Value.ToUpperInvariant()}-{long.Parse(number.Groups[2].Value):D9}", "Id", "Lookup by customer number");
         }
 
         if (CnicPattern().IsMatch(text))
@@ -160,6 +160,20 @@ public sealed partial class SqlCustomerSearch(RegionalDataPlane dataPlane) : ICu
     }
 
     private sealed record SearchPlan(string? Filter, object? Parameter, string OrderBy, string Strategy);
+
+    // Every customer of the bank in this province: registered ones and bulk-loaded ones (customer.Customers),
+    // with their account (if any), shaped like the search results. Bulk-loaded customers keep their PB-000001234 number.
+    private const string BankCustomers = """
+        (SELECT ROW_NUMBER() OVER (ORDER BY rc.CreatedAtUtc, rc.Id) AS Id,
+                CASE WHEN rc.Email LIKE '%@bulk.digitalbank.local' THEN UPPER(LEFT(rc.Email, CHARINDEX('@', rc.Email) - 1))
+                     ELSE 'REG-' + UPPER(LEFT(CONVERT(varchar(36), rc.Id), 8)) END AS CustomerNo,
+                rc.FullName, rc.NationalId AS Cnic, ISNULL(rc.PhoneNumber, '') AS Phone, CAST('' AS varchar(1)) AS Gender,
+                LTRIM(RTRIM(LEFT(ISNULL(rc.Address, ''), CHARINDEX(',', ISNULL(rc.Address, '') + ',') - 1))) AS City,
+                ISNULL(ac.AccountNumber, '') AS AccountNumber, ISNULL(ac.AccountType, '') AS AccountType,
+                ISNULL(ac.Balance, 0) AS Balance, rc.CreatedAtUtc
+         FROM customer.Customers rc
+         OUTER APPLY (SELECT TOP 1 x.AccountNumber, x.AccountType, x.Balance FROM account.Accounts x WHERE x.UserId = rc.UserId) ac)
+        """;
 
     [GeneratedRegex(@"^(PB|SD|KP|BL)-0*(\d{1,12})$", RegexOptions.IgnoreCase)]
     private static partial Regex CustomerNumber();

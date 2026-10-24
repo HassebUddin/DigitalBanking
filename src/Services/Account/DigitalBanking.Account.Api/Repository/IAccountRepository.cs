@@ -20,6 +20,8 @@ public interface IAccountRepository
 
     Task<AccountApplication?> GetAccountApplicationByIdAsync(Guid applicationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<AccountApplication>> GetAccountApplicationsAsync(Guid userId, bool isAdmin, CancellationToken cancellationToken);
+    Task<bool> AccountApplicationExistsAsync(Guid userId, Guid applicationId, CancellationToken cancellationToken);
+    Task<Guid> FindCustomerIdAsync(Guid userId, CancellationToken cancellationToken);
     Task<bool> AccountApplicationPendingExistsAsync(Guid userId, CancellationToken cancellationToken);
     Task AddAccountApplicationAsync(AccountApplication application, CancellationToken cancellationToken);
 

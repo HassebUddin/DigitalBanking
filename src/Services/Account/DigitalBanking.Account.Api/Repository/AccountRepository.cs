@@ -143,6 +143,23 @@ public sealed class AccountRepository(RegionalDb<AccountDbContext> db, AccountDi
         return applications.OrderByDescending(application => application.CreatedAtUtc).ToList();
     }
 
+    // Looks only in the user's own province (used when a queued request is replayed).
+    public async Task<bool> AccountApplicationExistsAsync(Guid userId, Guid applicationId, CancellationToken cancellationToken)
+    {
+        var context = await db.ForUserAsync(userId, cancellationToken);
+        return await context.Applications.AnyAsync(application => application.Id == applicationId, cancellationToken);
+    }
+
+    // The customer profile lives in the same province database (customer schema), so a request queued
+    // without a customer id can find it once the province is back.
+    public async Task<Guid> FindCustomerIdAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var context = await db.ForUserAsync(userId, cancellationToken);
+        return await context.Database
+            .SqlQuery<Guid>($"SELECT TOP 1 Id AS [Value] FROM [customer].[Customers] WHERE UserId = {userId}")
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<bool> AccountApplicationPendingExistsAsync(Guid userId, CancellationToken cancellationToken)
     {
         var context = await db.ForUserAsync(userId, cancellationToken);

@@ -30,7 +30,8 @@ public static class MessagingExtensions
             EventType = eventType,
             Handler = async (payload, cancellationToken) =>
             {
-                using var scope = serviceProvider.CreateScope();
+                // Async scope: RegionalDb (one connection per province) can only be disposed asynchronously.
+                await using var scope = serviceProvider.CreateAsyncScope();
                 var handler = scope.ServiceProvider.GetRequiredService<THandler>();
                 await handler.HandleAsync(payload, cancellationToken);
             }

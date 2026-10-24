@@ -7,7 +7,7 @@ namespace DigitalBanking.BuildingBlocks.Regions;
 // - FindAsync: look in every province and remember ("pin") where the row was found,
 //   so later adds and SaveChangesAsync go to that same database.
 // - AllAsync: staff views that list rows from every province.
-public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserRegionDirectory directory) : IAsyncDisposable
+public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserRegionDirectory directory) : IAsyncDisposable, IDisposable
     where TContext : DbContext
 {
     private readonly Dictionary<string, TContext> contexts = new();
@@ -74,11 +74,25 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         return For(await directory.GetRegionAsync(userId, cancellationToken));
     }
 
+    // A province that is down is skipped, so a row in a working province is still found. If the row is
+    // nowhere and some province could not be searched, it may be there: report "unavailable" (retry), not "not found".
     public async Task<T?> FindAsync<T>(Func<TContext, Task<T?>> query) where T : class
     {
+        var skipped = false;
         foreach (var region in SearchOrder())
         {
-            var found = await query(For(region));
+            T? found;
+            try
+            {
+                found = await query(For(region));
+            }
+            catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
+            {
+                skipped = true;
+                await DropAsync(region);
+                continue;
+            }
+
             if (found is not null)
             {
                 Pin(region);
@@ -86,16 +100,26 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
             }
         }
 
-        return null;
+        return skipped
+            ? throw new Exceptions.ServiceUnavailableException("A province database is down right now. Please retry in a few seconds.")
+            : null;
     }
 
+    // Best effort across the provinces that are up (e.g. CNIC uniqueness): a down province is skipped.
     public async Task<bool> AnyAsync(Func<TContext, Task<bool>> query)
     {
         foreach (var region in SearchOrder())
         {
-            if (await query(For(region)))
+            try
             {
-                return true;
+                if (await query(For(region)))
+                {
+                    return true;
+                }
+            }
+            catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
+            {
+                await DropAsync(region);
             }
         }
 
@@ -148,6 +172,17 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
                 await context.SaveChangesAsync(cancellationToken);
             }
         }
+    }
+
+    // Also usable from a plain (synchronous) DI scope.
+    public void Dispose()
+    {
+        foreach (var context in contexts.Values)
+        {
+            context.Dispose();
+        }
+
+        contexts.Clear();
     }
 
     public async ValueTask DisposeAsync()

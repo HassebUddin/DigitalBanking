@@ -16,7 +16,8 @@ public sealed class AuthService(
     JwtTokenIssuer tokenIssuer,
     PasswordHasher<User> passwordHasher,
     IOptions<JwtOptions> jwtOptions,
-    CustomerProfileClient customerProfileClient)
+    CustomerProfileClient customerProfileClient,
+    RegionalDatabaseOptions regionalDatabases)
 {
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
@@ -58,8 +59,25 @@ public sealed class AuthService(
         identityRepository.AddEvent(registration);
 
         await identityRepository.SaveChangesAsync(cancellationToken);
-        await customerProfileClient.SendAsync(registration, cancellationToken);
-        return await IssueTokensAsync(user, cancellationToken);
+        var profileCreated = await customerProfileClient.SendAsync(registration, cancellationToken);
+        var response = await IssueTokensAsync(user, cancellationToken);
+        response.ProfilePending = !profileCreated;
+        return response;
+    }
+
+    private async Task<bool> ProvinceReachableAsync(string region, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(regionalDatabases.RegionConnectionString(region)) { ConnectTimeout = 3 };
+            await using var connection = new Microsoft.Data.SqlClient.SqlConnection(builder.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            return true;
+        }
+        catch (Microsoft.Data.SqlClient.SqlException)
+        {
+            return false;
+        }
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
@@ -74,6 +92,13 @@ public sealed class AuthService(
         if (!user.IsActive)
         {
             throw new ForbiddenException("This account is disabled.");
+        }
+
+        // A customer's data lives in their province's database. If that province is down (master and slave),
+        // the app would only show an empty dashboard, so sign-in waits until the province is back.
+        if (user.Role == UserRoles.Customer && !await ProvinceReachableAsync(user.Region, cancellationToken))
+        {
+            throw new ServiceUnavailableException($"The bank's database for {BankRegions.DisplayName(user.Region)} is under maintenance right now. Your data is safe; please sign in again in a few minutes.");
         }
 
         user.LastLoginAtUtc = DateTime.UtcNow;

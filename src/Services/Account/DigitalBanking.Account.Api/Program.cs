@@ -2,6 +2,8 @@ using DigitalBanking.Account.Api.Application;
 using DigitalBanking.Account.Api.Infrastructure;
 using DigitalBanking.Account.Api.Repository;
 using DigitalBanking.BuildingBlocks.Http;
+using DigitalBanking.BuildingBlocks.Messaging;
+using DigitalBanking.Contracts.Events;
 using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.BuildingBlocks.Web;
 using Microsoft.AspNetCore.Http.Features;
@@ -16,6 +18,9 @@ builder.Services.AddRegionalDbContext<AccountDbContext>();
 builder.Services.AddRegionalOutboxPublisher<AccountDbContext>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<AccountService>();
+// Account requests and approvals queued while a province was down (master and slave).
+builder.Services.AddEventHandler<AccountApplicationQueuedHandler>(nameof(AccountApplicationQueuedEvent));
+builder.Services.AddEventHandler<AccountApplicationReviewQueuedHandler>(nameof(AccountApplicationReviewQueuedEvent));
 builder.Services.AddScoped<LedgerAuditor>();
 builder.Services.AddSingleton<AccountDirectory>();
 builder.Services.AddSingleton<AccountFileStore>();

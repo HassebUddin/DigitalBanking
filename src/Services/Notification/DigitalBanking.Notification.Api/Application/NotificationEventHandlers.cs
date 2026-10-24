@@ -31,10 +31,19 @@ public abstract class NotificationEventHandler<TEvent>(RegionalDb<NotificationDb
             return;
         }
 
-        HandleEvent(integrationEvent);
-        await notificationService.FlushAsync(cancellationToken);
-        InboxGuard.MarkProcessed(inbox, integrationEvent.EventId);
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            HandleEvent(integrationEvent);
+            await notificationService.FlushAsync(cancellationToken);
+            InboxGuard.MarkProcessed(inbox, integrationEvent.EventId);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
+        {
+            // The user's province is down: wait a little, then let RabbitMQ deliver the message again.
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            throw;
+        }
     }
 
     protected abstract void HandleEvent(TEvent integrationEvent);
@@ -153,5 +162,15 @@ public sealed class CustomerRegisteredNotificationHandler(RegionalDb<Notificatio
     protected override void HandleEvent(CustomerRegisteredEvent integrationEvent)
     {
         Notify(integrationEvent.UserId, "Welcome to Digital Banking", "Your customer profile is ready. You can now open an account.");
+    }
+}
+
+// A message another service asked to send (e.g. a queued transfer or account request that could not go through).
+public sealed class CustomerNotificationRequestedHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<CustomerNotificationRequestedEvent>(db, notificationService)
+{
+    protected override void HandleEvent(CustomerNotificationRequestedEvent integrationEvent)
+    {
+        Notify(integrationEvent.UserId, integrationEvent.Title, integrationEvent.Body);
     }
 }

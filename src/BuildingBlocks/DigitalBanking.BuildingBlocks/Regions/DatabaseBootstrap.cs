@@ -29,6 +29,12 @@ public static class DatabaseBootstrap
             }
         }
 
+        // Master -> slave replication reads under snapshot isolation; a database created here (rather than by
+        // the admin's data plane) must allow it too.
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "IF (SELECT snapshot_isolation_state FROM sys.databases WHERE name = DB_NAME()) = 0 ALTER DATABASE CURRENT SET ALLOW_SNAPSHOT_ISOLATION ON;",
+            cancellationToken);
+
         var (schema, table) = Tables(dbContext).First();
         if (!await TableExistsAsync(dbContext, schema, table, cancellationToken))
         {

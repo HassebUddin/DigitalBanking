@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using DigitalBanking.Admin.Api.Infrastructure;
 using DigitalBanking.Admin.Api.Ops.Data;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Regions;
 using Microsoft.EntityFrameworkCore;
 
 namespace DigitalBanking.Admin.Api.Ops;
@@ -190,16 +191,28 @@ public sealed class CustomerBatchJobs(
         {
             var firstId = dataPlane.AllocateCustomerIds(cluster, chunk.Rows.Count);
             var table = CreateTable();
+            var profiles = CreateProfileTable();
+            var region = BankRegions.Normalize(province.Code);
             for (var index = 0; index < chunk.Rows.Count; index++)
             {
-                var row = chunk.Rows[index];
+                var row = (object[])chunk.Rows[index].Clone();
                 var id = firstId + index;
-                table.Rows.Add([id, $"{province.Code}-{id:D9}", .. row]);
+                var customerNo = $"{province.Code}-{id:D9}";
+
+                // The bank's CNIC column is unique, so the CNIC is derived from the (unique) customer number.
+                var genderDigit = ((string)row[1])[^1];
+                row[1] = $"{province.CnicPrefix}{id / 10_000_000 % 10_000:D4}-{id % 10_000_000:D7}-{genderDigit}";
+                table.Rows.Add([id, customerNo, .. row]);
+
+                var phone = (string)row[2];
+                var createdAt = (DateTime)row[9];
+                profiles.Rows.Add(Guid.NewGuid(), Guid.NewGuid(), row[0], $"{customerNo.ToLowerInvariant()}@bulk.digitalbank.local", row[1],
+                    $"{phone[..4]}-{phone[4..]}", $"{row[4]}, {province.Name}", id % 10 < 7 ? "Verified" : "Pending", region, createdAt, createdAt);
             }
 
             try
             {
-                await dataPlane.BulkInsertAsync(province.Name, "Customers", table, 0, cancellationToken);
+                await dataPlane.BulkInsertCustomersAsync(province.Name, table, profiles, cancellationToken);
                 if (job.Batch.Status != "Running")
                 {
                     job.Batch.Status = "Running";
@@ -272,6 +285,24 @@ public sealed class CustomerBatchJobs(
         var u1 = 1.0 - random.NextDouble();
         var u2 = random.NextDouble();
         return Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Cos(2.0 * Math.PI * u2);
+    }
+
+    // Columns of the bank's customer.Customers table (the customer service's profile).
+    private static DataTable CreateProfileTable()
+    {
+        var table = new DataTable();
+        table.Columns.Add("Id", typeof(Guid));
+        table.Columns.Add("UserId", typeof(Guid));
+        table.Columns.Add("FullName", typeof(string));
+        table.Columns.Add("Email", typeof(string));
+        table.Columns.Add("NationalId", typeof(string));
+        table.Columns.Add("PhoneNumber", typeof(string));
+        table.Columns.Add("Address", typeof(string));
+        table.Columns.Add("KycStatus", typeof(string));
+        table.Columns.Add("Region", typeof(string));
+        table.Columns.Add("CreatedAtUtc", typeof(DateTime));
+        table.Columns.Add("UpdatedAtUtc", typeof(DateTime));
+        return table;
     }
 
     private static DataTable CreateTable()

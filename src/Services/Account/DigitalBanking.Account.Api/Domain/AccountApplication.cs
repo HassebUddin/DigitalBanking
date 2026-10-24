@@ -24,4 +24,7 @@ public static class ApplicationStatuses
     public const string Pending = "Pending";
     public const string Approved = "Approved";
     public const string Rejected = "Rejected";
+
+    // Only in responses: the customer's province was down, the request waits in RabbitMQ.
+    public const string Queued = "Queued";
 }

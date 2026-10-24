@@ -67,7 +67,18 @@ public sealed class RabbitMqEventConsumer(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Failed to process event {EventType}", eventType);
+                if (Regions.RegionErrors.IsRegionDown(exception))
+                {
+                    // A province database is down: the message stays queued. Wait before handing it back,
+                    // instead of retrying thousands of times a second until the province returns.
+                    logger.LogWarning("{EventType} waits: a province database is down.", eventType);
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                }
+                else
+                {
+                    logger.LogError(exception, "Failed to process event {EventType}", eventType);
+                }
+
                 channel.BasicNack(arguments.DeliveryTag, false, true);
             }
         };

@@ -2,7 +2,7 @@ import { Component, OnInit, computed, signal, inject } from '@angular/core';
 import { ToastService } from '../core/toast.service';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../core/auth.service';
-import { BankingService } from '../core/banking.service';
+import { BankingService, queuedMessage } from '../core/banking.service';
 import { AccountApplication, BankAccount } from '../core/models';
 import { formatMoney, readErrorMessage } from '../core/http-error';
 import { AppIcon } from '../ui/icon';
@@ -205,7 +205,7 @@ export class DeskCardsPage implements OnInit {
   approve(applicationId: string) {
     this.busyId.set(applicationId);
     this.bankingService.updateAccountApplicationStatus(applicationId, 'Approved', 'Approved after document review.').subscribe({
-      next: () => this.done('Account approved and opened.'),
+      next: (result) => this.done(queuedMessage(result) ?? 'Account approved and opened.'),
       error: (error) => this.fail(error)
     });
   }
@@ -213,7 +213,7 @@ export class DeskCardsPage implements OnInit {
   reject(applicationId: string) {
     this.busyId.set(applicationId);
     this.bankingService.updateAccountApplicationStatus(applicationId, 'Rejected', 'Documents need correction.').subscribe({
-      next: () => this.done('Request rejected.'),
+      next: (result) => this.done(queuedMessage(result) ?? 'Request rejected.'),
       error: (error) => this.fail(error)
     });
   }
@@ -221,7 +221,7 @@ export class DeskCardsPage implements OnInit {
   reopen(applicationId: string) {
     this.busyId.set(applicationId);
     this.bankingService.updateAccountApplicationStatus(applicationId, 'Pending', 'Returned to review by the bank.').subscribe({
-      next: () => this.done('Request moved back to review.'),
+      next: (result) => this.done(queuedMessage(result) ?? 'Request moved back to review.'),
       error: (error) => this.fail(error)
     });
   }

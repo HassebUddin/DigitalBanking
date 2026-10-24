@@ -33,7 +33,9 @@ public sealed class CustomerProfileClient(HttpClient httpClient, IConfiguration 
         }
     }
 
-    public async Task SendAsync(CustomerRegisteredEvent registration, CancellationToken cancellationToken)
+    // True when the profile was created right away; false when the customer's province is down (master and
+    // slave) or the customer service is unreachable: the queued event creates it once the province is back.
+    public async Task<bool> SendAsync(CustomerRegisteredEvent registration, CancellationToken cancellationToken)
     {
         try
         {
@@ -56,10 +58,14 @@ public sealed class CustomerProfileClient(HttpClient httpClient, IConfiguration 
             {
                 logger.LogWarning("Customer profile for {UserId} not created directly ({Status}); the event will deliver it.", registration.UserId, (int)response.StatusCode);
             }
+
+            return response.IsSuccessStatusCode;
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
         {
             logger.LogWarning("Customer service unreachable for {UserId}; the event will deliver the profile: {Message}", registration.UserId, exception.Message);
         }
+
+        return false;
     }
 }

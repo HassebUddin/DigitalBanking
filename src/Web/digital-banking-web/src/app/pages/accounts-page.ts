@@ -111,6 +111,15 @@ import { AppIcon } from '../ui/icon';
       </div>
     </section>
 
+    <app-modal [open]="queuedNotice()" title="Request saved" (close)="queuedNotice.set(false)">
+      <div class="maint-body">
+        <span class="maint-ico"><app-icon name="history" /></span>
+        <p>Our banking database for your province is under maintenance right now.</p>
+        <p>Your account request and documents are saved. It will be submitted automatically as soon as the system is back, and you will get a notification.</p>
+        <button type="button" (click)="queuedNotice.set(false)">OK, got it</button>
+      </div>
+    </app-modal>
+
     <app-modal [open]="requestOpen()" [title]="stepTitle()" (close)="closeRequest()">
       <div class="apply-steps">
         <span [class.on]="step() === 1" [class.done]="step() > 1"></span>
@@ -250,6 +259,7 @@ export class AccountsPage implements OnInit {
   private readonly toasts = inject(ToastService).watch([() => this.error, () => this.modalError], [() => this.message]);
   modalError = signal('');
   message = signal('');
+  queuedNotice = signal(false);
   loading = signal(true);
   private loadStartedAt = Date.now();
 
@@ -406,6 +416,11 @@ export class AccountsPage implements OnInit {
         next: (application) => {
           this.submitting.set(false);
           this.requestOpen.set(false);
+          if (application.status === 'Queued') {
+            // The customer's province database is down: the request waits in a queue (see the popup).
+            this.queuedNotice.set(true);
+            return;
+          }
           this.message.set('Request sent. The bank will activate your account after document review.');
           this.applications.update((list) => [application, ...list.filter((item) => item.id !== application.id)]);
           this.reload();

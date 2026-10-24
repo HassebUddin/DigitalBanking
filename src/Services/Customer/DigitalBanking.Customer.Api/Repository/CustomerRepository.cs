@@ -20,8 +20,11 @@ public sealed class CustomerRepository(RegionalDb<CustomerDbContext> db) : ICust
 
     public async Task<IReadOnlyList<CustomerProfile>> GetCustomersAsync(CancellationToken cancellationToken)
     {
-        var customers = await db.AllAsync(context => context.Customers.ToListAsync(cancellationToken));
-        return customers.OrderByDescending(customer => customer.CreatedAtUtc).ToList();
+        // Bulk loading can put millions of customers in a province: staff lists show the newest 500;
+        // the admin's Regions page searches all of them in SQL.
+        const int newest = 500;
+        var customers = await db.AllAsync(context => context.Customers.OrderByDescending(customer => customer.CreatedAtUtc).Take(newest).ToListAsync(cancellationToken));
+        return customers.OrderByDescending(customer => customer.CreatedAtUtc).Take(newest).ToList();
     }
 
     public Task<bool> CustomerExistsByUserIdAsync(Guid userId, CancellationToken cancellationToken)

@@ -44,12 +44,22 @@ public static class RegionalServiceExtensions
     {
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<RegionalDb<TContext>>();
-        var topology = scope.ServiceProvider.GetRequiredService<RegionalDatabaseOptions>().Topology;
+        var options = scope.ServiceProvider.GetRequiredService<RegionalDatabaseOptions>();
+        var topology = options.Topology;
         foreach (var region in BankRegions.All)
         {
             foreach (var node in new[] { 'A', 'B' })
             {
                 var database = BankRegions.DatabaseName(region, node);
+
+                // A province whose server is down (e.g. its Docker container is stopped) must not stop this service
+                // from starting: the other provinces keep working, and this one answers "retry" until it is back.
+                if (!await IsServerReachableAsync(options.MasterConnectionStringFor(database)))
+                {
+                    app.Logger.LogWarning("{Database} is not reachable; skipped at startup.", database);
+                    continue;
+                }
+
                 try
                 {
                     await using var context = db.ForDatabase(database);
@@ -67,7 +77,7 @@ public static class RegionalServiceExtensions
         {
             await DatabaseBootstrap.ImportLegacyAsync(db.For(BankRegions.Default), legacyDatabase);
         }
-        catch (SqlException exception)
+        catch (Exception exception) when (exception is SqlException || RegionErrors.IsUnavailable(exception))
         {
             // E.g. fenced: the cluster coordinator has not granted Punjab's primary its lease yet. Retried on the next start.
             app.Logger.LogWarning("Legacy import from {Database} skipped: {Message}", legacyDatabase, exception.Message);
@@ -83,6 +93,20 @@ public static class RegionalServiceExtensions
         if (legacyDatabase is not null)
         {
             await DatabaseBootstrap.ImportLegacyAsync(dbContext, legacyDatabase);
+        }
+    }
+
+    private static async Task<bool> IsServerReachableAsync(string masterConnectionString)
+    {
+        try
+        {
+            await using var connection = new SqlConnection(masterConnectionString);
+            await connection.OpenAsync();
+            return true;
+        }
+        catch (SqlException)
+        {
+            return false;
         }
     }
 

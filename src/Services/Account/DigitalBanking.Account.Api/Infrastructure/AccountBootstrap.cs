@@ -53,6 +53,8 @@ public static class AccountBootstrap
 
         foreach (var region in BankRegions.All)
         {
+          try
+          {
             foreach (var node in new[] { 'A', 'B' })
             {
                 var database = BankRegions.DatabaseName(region, node);
@@ -84,6 +86,12 @@ public static class AccountBootstrap
                 // E.g. fenced because the cluster coordinator has not granted a lease yet; retried on the next start.
                 app.Logger.LogWarning("Opening ledger postings for {Region} skipped: {Message}", region, exception.Message);
             }
+          }
+          catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
+          {
+              // The province is down (e.g. its Docker container is stopped): start anyway, the other provinces keep working.
+              app.Logger.LogWarning("{Region} is not reachable; account setup skipped at startup.", region);
+          }
         }
     }
 }

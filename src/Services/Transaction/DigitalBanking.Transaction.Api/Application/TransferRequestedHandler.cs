@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBanking.BuildingBlocks.Exceptions;
 using DigitalBanking.BuildingBlocks.Messaging;
+using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Contracts.Events;
 using DigitalBanking.Transaction.Api.Contracts;
 using DigitalBanking.Transaction.Api.Domain;
@@ -13,6 +14,21 @@ namespace DigitalBanking.Transaction.Api.Application;
 public sealed class TransferRequestedHandler(TransactionService transactionService, ITransactionRepository transactionRepository) : IIntegrationEventHandler
 {
     public async Task HandleAsync(string payload, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ProcessAsync(payload, cancellationToken);
+        }
+        catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
+        {
+            // The sender's (or receiver's) province is down, master and slave: keep the transfer in the queue.
+            // Wait a little, then let RabbitMQ deliver it again; it goes through once the province is back.
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            throw;
+        }
+    }
+
+    private async Task ProcessAsync(string payload, CancellationToken cancellationToken)
     {
         var request = JsonSerializer.Deserialize<TransferRequestedEvent>(payload, new JsonSerializerOptions
         {
@@ -40,7 +56,7 @@ public sealed class TransferRequestedHandler(TransactionService transactionServi
                 cancellationToken,
                 request.TransferId);
         }
-        catch (DomainException exception)
+        catch (DomainException exception) when (!RegionErrors.IsRegionDown(exception))
         {
             // A business failure (wrong account, low balance, ...) is final: retrying would fail again.
             // Make sure the customer still sees the transfer as failed in their history, and is told.

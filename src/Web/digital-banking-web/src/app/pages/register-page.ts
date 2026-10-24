@@ -4,10 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 import { readErrorMessage } from '../core/http-error';
+import { AppModal } from '../ui/modal';
+import { AppIcon } from '../ui/icon';
 
 @Component({
   selector: 'app-register-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, AppModal, AppIcon],
   template: `
     <section class="auth-screen">
       <div class="auth-hero">
@@ -40,6 +42,14 @@ import { readErrorMessage } from '../core/http-error';
           <label>Password<input name="password" [(ngModel)]="password" type="password" required /></label>
           <button type="submit" [disabled]="busy()">Create account</button>
         </form>
+        <app-modal [open]="pendingNotice()" title="Registration saved" (close)="goToLogin()">
+          <div class="maint-body">
+            <span class="maint-ico"><app-icon name="history" /></span>
+            <p>The bank's database for your province is under maintenance right now.</p>
+            <p>Your registration is saved. Your profile will be set up automatically as soon as the system is back. Please sign in again in a few minutes.</p>
+            <button type="button" (click)="goToLogin()">OK, go to sign in</button>
+          </div>
+        </app-modal>
         <div class="links">
           <a routerLink="/login">Already registered? Login</a>
         </div>
@@ -55,6 +65,7 @@ export class RegisterPage {
   address = '';
   // Decides which province database keeps this customer's data.
   region = 'punjab';
+  pendingNotice = signal(false);
   password = '';
   busy = signal(false);
   error = signal('');
@@ -75,6 +86,11 @@ export class RegisterPage {
   formatMobile(value: string) {
     const digits = (value ?? '').replace(/\D/g, '').slice(0, 11);
     return digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
+  }
+
+  goToLogin() {
+    this.pendingNotice.set(false);
+    void this.router.navigateByUrl('/login');
   }
 
   submit() {
@@ -101,7 +117,16 @@ export class RegisterPage {
         region: this.region
       })
       .subscribe({
-        next: () => void this.router.navigateByUrl('/dashboard'),
+        next: (response) => {
+          if (response.profilePending) {
+            // The province database (master and slave) is down: don't open an empty dashboard.
+            this.authService.clearSession();
+            this.busy.set(false);
+            this.pendingNotice.set(true);
+            return;
+          }
+          void this.router.navigateByUrl('/dashboard');
+        },
         error: (error) => {
           this.busy.set(false);
           this.error.set(readErrorMessage(error, 'Unable to register.'));

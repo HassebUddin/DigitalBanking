@@ -13,8 +13,13 @@ public static class RegionErrors
         Fenced,                 // our fencing trigger: this database holds no valid primary lease
         4060, 18456,            // cannot open database / login failed (database offline)
         942, 952, 978, 983,     // database offline / in transition / not accessible
-        -2, 53, 233, 10053, 10054, 40613
+        -2, 53, 233, 10053, 10054, 40613,
+        10060, 10061, 1225, 121, 11001   // server unreachable: e.g. the province's Docker container is stopped
     ];
+
+    // The province is down or switching over: the work can be queued and retried later instead of failing.
+    public static bool IsRegionDown(Exception? exception) =>
+        exception is Exceptions.ServiceUnavailableException || IsUnavailable(exception);
 
     public static bool IsUnavailable(Exception? exception)
     {

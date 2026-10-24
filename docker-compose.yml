@@ -5,36 +5,62 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "1024"
     ports:
       - "1433:1433"
     volumes:
       - sqlserver-data:/var/opt/mssql
 
-  # The two zones of every province: DigitalBanking_*_A databases live in zone A, *_B in zone B.
-  # `docker stop digitalbanking-sql-zone-a` takes zone A down; the coordinator promotes zone B.
-  sql-zone-a:
+  # One SQL Server per province: holds DigitalBanking_<Province>_A and _B.
+  # `docker stop digitalbanking-sql-sindh` takes only Sindh down; Punjab, KP and Balochistan keep working
+  # and the admin keeps showing their customers.
+  sql-punjab:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: digitalbanking-sql-zone-a
+    container_name: digitalbanking-sql-punjab
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "DigitalBank_2026!"
-      MSSQL_MEMORY_LIMIT_MB: "1536"
+      MSSQL_MEMORY_LIMIT_MB: "1024"
     ports:
-      - "14331:1433"
+      - "14341:1433"
     volumes:
-      - sql-zone-a-data:/var/opt/mssql
+      - sql-punjab-data:/var/opt/mssql
 
-  sql-zone-b:
+  sql-sindh:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: digitalbanking-sql-zone-b
+    container_name: digitalbanking-sql-sindh
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "DigitalBank_2026!"
-      MSSQL_MEMORY_LIMIT_MB: "1536"
+      MSSQL_MEMORY_LIMIT_MB: "1024"
     ports:
-      - "14332:1433"
+      - "14342:1433"
     volumes:
-      - sql-zone-b-data:/var/opt/mssql
+      - sql-sindh-data:/var/opt/mssql
+
+  sql-kp:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: digitalbanking-sql-kp
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "1024"
+    ports:
+      - "14343:1433"
+    volumes:
+      - sql-kp-data:/var/opt/mssql
+
+  sql-balochistan:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: digitalbanking-sql-balochistan
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "1024"
+    ports:
+      - "14344:1433"
+    volumes:
+      - sql-balochistan-data:/var/opt/mssql
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -54,5 +80,7 @@ services:
 
 volumes:
   sqlserver-data:
-  sql-zone-a-data:
-  sql-zone-b-data:
+  sql-punjab-data:
+  sql-sindh-data:
+  sql-kp-data:
+  sql-balochistan-data:

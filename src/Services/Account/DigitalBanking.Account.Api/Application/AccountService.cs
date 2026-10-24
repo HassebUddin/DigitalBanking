@@ -4,11 +4,13 @@ using DigitalBanking.Account.Api.Domain;
 using DigitalBanking.Account.Api.Repository;
 using DigitalBanking.BuildingBlocks.Caching;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Messaging;
+using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Contracts.Events;
 
 namespace DigitalBanking.Account.Api.Application;
 
-public sealed class AccountService(IAccountRepository accountRepository, ICacheService cacheService)
+public sealed class AccountService(IAccountRepository accountRepository, ICacheService cacheService, IEventPublisher eventPublisher)
 {
     public async Task<AccountResponse> AddAccountAsync(Guid userId, Guid customerId, OpenAccountRequest request, CancellationToken cancellationToken)
     {
@@ -71,13 +73,16 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
 
     public async Task<AccountApplicationResponse> RequestAccountApplicationAsync(Guid userId, Guid customerId, string accountType, string purpose, IFormFile identityDocument, IFormFile identityBackDocument, IFormFile? addressDocument, IFormFile signature, AccountFileStore fileStore, CancellationToken cancellationToken)
     {
-        // One person, one account.
-        if ((await accountRepository.GetAccountsAsync(userId, false, cancellationToken)).Any(account => account.Status != AccountStatuses.Closed))
-            throw new BusinessRuleException("You already have an account. Only one account is allowed per customer.");
-
-        var pendingExists = await accountRepository.AccountApplicationPendingExistsAsync(userId, cancellationToken);
-        if (pendingExists)
-            throw new BusinessRuleException("You already have an account request waiting for bank approval.");
+        // When the customer's province is down (master and slave), the request is queued instead of failing.
+        var provinceDown = false;
+        try
+        {
+            await EnsureCanRequestAccountAsync(userId, cancellationToken);
+        }
+        catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
+        {
+            provinceDown = true;
+        }
 
         var type = string.Equals(accountType, AccountTypes.Current, StringComparison.OrdinalIgnoreCase) ? AccountTypes.Current : AccountTypes.Savings;
         var application = new AccountApplication
@@ -96,8 +101,94 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
             CreatedAtUtc = DateTime.UtcNow
         };
 
-        await accountRepository.AddAccountApplicationAsync(application, cancellationToken);
+        if (!provinceDown)
+        {
+            try
+            {
+                await accountRepository.AddAccountApplicationAsync(application, cancellationToken);
+                await accountRepository.SaveAccountChangesAsync(cancellationToken);
+                return ToResponse(application);
+            }
+            catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
+            {
+            }
+        }
+
+        // The documents are saved; only the database row is missing. RabbitMQ keeps the request until the
+        // province is back (see QueuedAccountWorkHandlers), then the customer is notified.
+        await eventPublisher.PublishAsync(new AccountApplicationQueuedEvent
+        {
+            ApplicationId = application.Id,
+            UserId = application.UserId,
+            CustomerId = application.CustomerId,
+            AccountType = application.AccountType,
+            Purpose = application.Purpose ?? string.Empty,
+            IdentityDocumentUrl = application.IdentityDocumentUrl ?? string.Empty,
+            IdentityBackDocumentUrl = application.IdentityBackDocumentUrl ?? string.Empty,
+            AddressDocumentUrl = application.AddressDocumentUrl ?? string.Empty,
+            SignatureUrl = application.SignatureUrl ?? string.Empty,
+            CreatedAtUtc = application.CreatedAtUtc
+        }, cancellationToken);
+        application.Status = ApplicationStatuses.Queued;
+        return ToResponse(application);
+    }
+
+    private async Task EnsureCanRequestAccountAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        // One person, one account.
+        if ((await accountRepository.GetAccountsAsync(userId, false, cancellationToken)).Any(account => account.Status != AccountStatuses.Closed))
+            throw new BusinessRuleException("You already have an account. Only one account is allowed per customer.");
+
+        if (await accountRepository.AccountApplicationPendingExistsAsync(userId, cancellationToken))
+            throw new BusinessRuleException("You already have an account request waiting for bank approval.");
+    }
+
+    // Replays a request that was queued while the customer's province was down.
+    public async Task ApplyQueuedApplicationAsync(AccountApplicationQueuedEvent queued, CancellationToken cancellationToken)
+    {
+        if (await accountRepository.AccountApplicationExistsAsync(queued.UserId, queued.ApplicationId, cancellationToken))
+        {
+            return;
+        }
+
+        try
+        {
+            await EnsureCanRequestAccountAsync(queued.UserId, cancellationToken);
+        }
+        catch (BusinessRuleException exception)
+        {
+            accountRepository.AddAccountEvent(new CustomerNotificationRequestedEvent { UserId = queued.UserId, Title = "Account request not submitted", Body = exception.Message });
+            await accountRepository.SaveAccountChangesAsync(cancellationToken);
+            return;
+        }
+
+        var customerId = queued.CustomerId != Guid.Empty ? queued.CustomerId : await accountRepository.FindCustomerIdAsync(queued.UserId, cancellationToken);
+        await accountRepository.AddAccountApplicationAsync(new AccountApplication
+        {
+            Id = queued.ApplicationId,
+            UserId = queued.UserId,
+            CustomerId = customerId,
+            AccountType = queued.AccountType,
+            Purpose = queued.Purpose,
+            IdentityDocumentUrl = queued.IdentityDocumentUrl,
+            IdentityBackDocumentUrl = queued.IdentityBackDocumentUrl,
+            AddressDocumentUrl = queued.AddressDocumentUrl,
+            SignatureUrl = queued.SignatureUrl,
+            TermsAccepted = true,
+            Status = ApplicationStatuses.Pending,
+            CreatedAtUtc = queued.CreatedAtUtc
+        }, cancellationToken);
+        accountRepository.AddAccountEvent(new CustomerNotificationRequestedEvent
+        {
+            UserId = queued.UserId,
+            Title = "Account request submitted",
+            Body = $"Our systems are back. Your {queued.AccountType} account request has been submitted and is now waiting for bank approval."
+        });
         await accountRepository.SaveAccountChangesAsync(cancellationToken);
+    }
+
+    private static AccountApplicationResponse ToResponse(AccountApplication application)
+    {
         return new AccountApplicationResponse { Id = application.Id, UserId = application.UserId, AccountType = application.AccountType, Purpose = application.Purpose ?? string.Empty, Status = application.Status, ReviewNote = application.ReviewNote ?? string.Empty, HasIdentityDocument = !string.IsNullOrWhiteSpace(application.IdentityDocumentUrl), HasIdentityBackDocument = !string.IsNullOrWhiteSpace(application.IdentityBackDocumentUrl), HasAddressDocument = !string.IsNullOrWhiteSpace(application.AddressDocumentUrl), HasSignature = !string.IsNullOrWhiteSpace(application.SignatureUrl), IdentityDocumentUrl = application.IdentityDocumentUrl, IdentityBackDocumentUrl = application.IdentityBackDocumentUrl, AddressDocumentUrl = application.AddressDocumentUrl, SignatureUrl = application.SignatureUrl, CreatedAccountId = application.CreatedAccountId, CreatedAtUtc = application.CreatedAtUtc };
     }
 

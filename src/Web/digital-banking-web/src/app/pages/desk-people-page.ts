@@ -247,7 +247,7 @@ export class DeskPeoplePage implements OnInit {
   }
 
   provinceName(region?: string) {
-    return ({ punjab: 'Punjab', sindh: 'Sindh', kp: 'KP', balochistan: 'Balochistan' } as Record<string, string>)[region ?? ''] ?? 'Punjab';
+    return ({ punjab: 'Punjab', sindh: 'Sindh', kp: 'KP', balochistan: 'Balochistan' } as Record<string, string>)[region ?? ''] ?? '—';
   }
 
   isVerified(status: string) {

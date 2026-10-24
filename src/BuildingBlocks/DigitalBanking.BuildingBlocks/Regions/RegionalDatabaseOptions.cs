@@ -8,11 +8,17 @@ namespace DigitalBanking.BuildingBlocks.Regions;
 //                          "UserId": "sa", "Password": "..." }
 // Node A databases (DigitalBanking_*_A) then live on ZoneAServer, node B databases on ZoneBServer and the central
 // database on Server, so stopping one container takes a whole zone down and the other zone takes over.
+// Or give every province its own server (one Docker container per province), so stopping a container takes just
+// that province down (both its nodes) while the other provinces keep working:
+//   "RegionalDatabases": { "ProvinceServers": { "punjab": "localhost,14341", "sindh": "localhost,14342",
+//                          "kp": "localhost,14343", "balochistan": "localhost,14344" }, ... }
+// A province server wins over the zone servers.
 public sealed class RegionalDatabaseOptions
 {
     private readonly string? zoneAServer;
     private readonly string? zoneBServer;
     private readonly string authentication;
+    private readonly Dictionary<string, string> provinceServers = new();
 
     public RegionalDatabaseOptions(IConfiguration configuration)
     {
@@ -20,6 +26,14 @@ public sealed class RegionalDatabaseOptions
         Server = configuration["RegionalDatabases:Server"] ?? "(localdb)\\MSSQLLocalDB";
         zoneAServer = configuration["RegionalDatabases:ZoneAServer"];
         zoneBServer = configuration["RegionalDatabases:ZoneBServer"];
+        foreach (var region in BankRegions.All)
+        {
+            if (configuration[$"RegionalDatabases:ProvinceServers:{region}"] is { Length: > 0 } provinceServer)
+            {
+                provinceServers[region] = provinceServer;
+            }
+        }
+
         var userId = configuration["RegionalDatabases:UserId"];
         authentication = string.IsNullOrWhiteSpace(userId)
             ? "Integrated Security=True"
@@ -32,6 +46,14 @@ public sealed class RegionalDatabaseOptions
     public RegionTopology Topology { get; }
 
     public string ServerFor(string database) =>
+        ProvinceOf(database) is { } region && provinceServers.TryGetValue(region, out var provinceServer) ? provinceServer
+        : ZoneServerFor(database);
+
+    // DigitalBanking_Sindh_A -> sindh; the central database belongs to no province.
+    private static string? ProvinceOf(string database) =>
+        BankRegions.All.FirstOrDefault(region => string.Equals(BankRegions.DatabaseName(region, database[^1]), database, StringComparison.OrdinalIgnoreCase));
+
+    private string ZoneServerFor(string database) =>
         database.EndsWith("_A", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(zoneAServer) ? zoneAServer
         : database.EndsWith("_B", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(zoneBServer) ? zoneBServer
         : Server;

@@ -3,6 +3,9 @@ using DigitalBanking.Account.Api.Contracts;
 using DigitalBanking.Account.Api.Domain;
 using DigitalBanking.BuildingBlocks.Authentication;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Messaging;
+using DigitalBanking.BuildingBlocks.Regions;
+using DigitalBanking.Contracts.Events;
 using DigitalBanking.BuildingBlocks.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,14 +17,25 @@ namespace DigitalBanking.Account.Api.Controllers;
 public sealed class AccountsController(
     AccountService accountService,
     CustomerLookupClient customerLookupClient,
-    CurrentUser currentUser) : ControllerBase
+    CurrentUser currentUser,
+    IEventPublisher eventPublisher) : ControllerBase
 {
     [Authorize(Roles = "Admin")]
     [HttpPost("add-account")]
     public async Task<ActionResult<AccountResponse>> AddAccount(OpenAccountRequest request, CancellationToken cancellationToken)
     {
         var accessToken = Request.Headers.Authorization.ToString().Replace("Bearer ", string.Empty);
-        var customerId = await customerLookupClient.GetCustomerIdAsync(accessToken, cancellationToken);
+        Guid customerId;
+        try
+        {
+            customerId = await customerLookupClient.GetCustomerIdAsync(accessToken, cancellationToken);
+        }
+        catch (ServiceUnavailableException)
+        {
+            // The customer's province is down: the request is queued and the profile is looked up when it is back.
+            customerId = currentUser.CustomerId ?? Guid.Empty;
+        }
+
     
         var account = await accountService.AddAccountAsync(currentUser.UserId, customerId, request, cancellationToken);
         return Ok(account);
@@ -52,8 +66,18 @@ public sealed class AccountsController(
         if (identityDocument is null || identityBackDocument is null || signature is null) throw new ValidationException("CNIC front, CNIC back and signature are required.");
         if (!termsAccepted) throw new ValidationException("You must accept the account opening declaration.");
         var accessToken = Request.Headers.Authorization.ToString().Replace("Bearer ", string.Empty);
-        
-        var customerId = await customerLookupClient.GetCustomerIdAsync(accessToken, cancellationToken);
+
+        Guid customerId;
+        try
+        {
+            customerId = await customerLookupClient.GetCustomerIdAsync(accessToken, cancellationToken);
+        }
+        catch (ServiceUnavailableException)
+        {
+            // The customer's province is down: the request is queued and the profile is looked up when it is back.
+            customerId = currentUser.CustomerId ?? Guid.Empty;
+        }
+
         return Ok(await accountService.RequestAccountApplicationAsync(currentUser.UserId, customerId, accountType, purpose, identityDocument!, identityBackDocument!, addressDocument, signature!, fileStore, cancellationToken));
     }
 
@@ -71,7 +95,16 @@ public sealed class AccountsController(
         var status = request?.Status ?? string.Empty;
         if (status is not (ApplicationStatuses.Pending or ApplicationStatuses.Approved or ApplicationStatuses.Rejected)) throw new ValidationException("Account application status is invalid.");
         
-        return Ok(await accountService.UpdateAccountApplicationStatusAsync(applicationId, status, request?.Note ?? string.Empty, cancellationToken));
+        try
+        {
+            return Ok(await accountService.UpdateAccountApplicationStatusAsync(applicationId, status, request?.Note ?? string.Empty, cancellationToken));
+        }
+        catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
+        {
+            // The customer's province is down (master and slave): RabbitMQ keeps the decision until it is back.
+            await eventPublisher.PublishAsync(new AccountApplicationReviewQueuedEvent { ApplicationId = applicationId, Status = status, Note = request?.Note ?? string.Empty }, cancellationToken);
+            return Accepted(new { queued = true, message = "This customer's province database is down right now. Your decision is saved and will be applied automatically when it is back; the customer will be notified." });
+        }
     }
 
     [Authorize]

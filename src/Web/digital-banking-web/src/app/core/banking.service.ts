@@ -153,3 +153,9 @@ export class BankingService {
     return this.http.post(`${this.apiUrl}/api/admin/accounts/${accountId}/unfreeze`, {});
   }
 }
+
+// The province database was down: the server queued the staff decision instead of applying it now.
+export function queuedMessage(result: unknown): string | null {
+  const queued = result as { queued?: boolean; message?: string } | null;
+  return queued?.queued ? queued.message ?? 'Saved; it will be applied when the system is back.' : null;
+}

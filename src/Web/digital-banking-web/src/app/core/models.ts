@@ -5,6 +5,8 @@ export interface AuthResponse {
   role: string;
   accessToken: string;
   refreshToken: string;
+  // Registration only: the province database was down, the profile is created later.
+  profilePending?: boolean;
 }
 
 export interface CustomerProfile {

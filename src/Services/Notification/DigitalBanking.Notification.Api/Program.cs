@@ -23,6 +23,7 @@ builder.Services.AddEventHandler<TransferFailedNotificationHandler>(nameof(Trans
 builder.Services.AddEventHandler<TransferRefundedNotificationHandler>(nameof(TransferRefundedEvent));
 builder.Services.AddEventHandler<PasswordChangedNotificationHandler>(nameof(PasswordChangedEvent));
 builder.Services.AddEventHandler<PasswordResetNotificationHandler>(nameof(PasswordResetRequestedEvent));
+builder.Services.AddEventHandler<CustomerNotificationRequestedHandler>(nameof(CustomerNotificationRequestedEvent));
 
 var app = builder.Build();
 app.UseBankingServicePipeline();

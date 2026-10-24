@@ -436,6 +436,27 @@ public sealed class RegionalDataPlane(
         await bulk.WriteToServerAsync(rows, cancellationToken);
     }
 
+    // Bulk-loaded customers are real bank customers: each chunk goes into the simulation's dbo.Customers (which the
+    // traffic generator uses) and into the bank's customer.Customers (what the admin and staff see), in one transaction
+    // on the province's current primary, so the two never disagree.
+    public async Task BulkInsertCustomersAsync(string province, DataTable simulated, DataTable profiles, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenPrimaryAsync(province, cancellationToken);
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        foreach (var (rows, destination) in new[] { (simulated, "dbo.Customers"), (profiles, "[customer].[Customers]") })
+        {
+            using var bulk = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction) { DestinationTableName = destination, BulkCopyTimeout = 120 };
+            foreach (DataColumn column in rows.Columns)
+            {
+                bulk.ColumnMappings.Add(column.ColumnName, column.ColumnName);
+            }
+
+            await bulk.WriteToServerAsync(rows, cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
     public void TrackCities(RegionCluster cluster, IReadOnlyDictionary<string, long> added)
     {
         foreach (var (city, count) in added)
@@ -1104,7 +1125,8 @@ public sealed class RegionalDataPlane(
             await connection.OpenAsync(cancellationToken);
             await using var command = new SqlCommand("""
                 SELECT
-                    (SELECT ISNULL(SUM(row_count), 0) FROM sys.dm_db_partition_stats WHERE object_id = OBJECT_ID('dbo.Customers') AND index_id IN (0, 1)),
+                    (SELECT ISNULL(SUM(row_count), 0) FROM sys.dm_db_partition_stats WHERE object_id = OBJECT_ID('customer.Customers') AND index_id IN (0, 1)),
+                    (SELECT ISNULL(SUM(row_count), 0) FROM sys.dm_db_partition_stats WHERE object_id = OBJECT_ID('dbo.Transactions'),
                     (SELECT ISNULL(SUM(row_count), 0) FROM sys.dm_db_partition_stats WHERE object_id = OBJECT_ID('dbo.Transactions') AND index_id IN (0, 1)),
                     (SELECT CAST(SUM(CAST(size AS bigint)) * 8 / 1024.0 AS float) FROM sys.database_files)
                 """, connection) { CommandTimeout = 5 };
@@ -1129,7 +1151,7 @@ public sealed class RegionalDataPlane(
             var node = ReadNode(cluster.Province.Name);
             await using var connection = new SqlConnection(node.ConnectionString);
             await connection.OpenAsync(cancellationToken);
-            await using var command = new SqlCommand("SELECT City, COUNT_BIG(*) FROM dbo.Customers GROUP BY City", connection) { CommandTimeout = 60 };
+            await using var command = new SqlCommand("SELECT City, COUNT_BIG(*) FROM (SELECT LTRIM(RTRIM(LEFT(ISNULL(Address, ''), CHARINDEX(',', ISNULL(Address, '') + ',') - 1))) AS City FROM customer.Customers) c GROUP BY City", connection) { CommandTimeout = 60 };
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             var fresh = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
             while (await reader.ReadAsync(cancellationToken))

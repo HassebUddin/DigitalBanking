@@ -73,6 +73,8 @@ public sealed class CustomerRow
     public string PhoneNumber { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string KycStatus { get; set; } = string.Empty;
+    // Province whose database holds the customer (punjab, sindh, kp, balochistan); shown on the admin's customer list.
+    public string Region { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
 }
 
