@@ -13,7 +13,8 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
     public async Task<AccountResponse> AddAccountAsync(Guid userId, Guid customerId, OpenAccountRequest request, CancellationToken cancellationToken)
     {
         var accountType = string.Equals(request.AccountType, AccountTypes.Current, StringComparison.OrdinalIgnoreCase) ? AccountTypes.Current : AccountTypes.Savings;
-        var account = new BankAccount { Id = Guid.NewGuid(), CustomerId = customerId, UserId = userId, AccountNumber = await CreateAccountNumberAsync(cancellationToken), AccountType = accountType, Balance = 0, Currency = "PKR", Status = AccountStatuses.Active, CreatedAtUtc = DateTime.UtcNow };
+        var accountId = Guid.NewGuid();
+        var account = new BankAccount { Id = accountId, CustomerId = customerId, UserId = userId, AccountNumber = await CreateAccountNumberAsync(accountId, userId, cancellationToken), AccountType = accountType, Balance = 0, Currency = "PKR", Status = AccountStatuses.Active, CreatedAtUtc = DateTime.UtcNow };
       
         await accountRepository.AddAccountAsync(account, cancellationToken);
         accountRepository.AddAccountEvent(new AccountCreatedEvent
@@ -70,6 +71,10 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
 
     public async Task<AccountApplicationResponse> RequestAccountApplicationAsync(Guid userId, Guid customerId, string accountType, string purpose, IFormFile identityDocument, IFormFile identityBackDocument, IFormFile? addressDocument, IFormFile signature, AccountFileStore fileStore, CancellationToken cancellationToken)
     {
+        // One person, one account.
+        if ((await accountRepository.GetAccountsAsync(userId, false, cancellationToken)).Any(account => account.Status != AccountStatuses.Closed))
+            throw new BusinessRuleException("You already have an account. Only one account is allowed per customer.");
+
         var pendingExists = await accountRepository.AccountApplicationPendingExistsAsync(userId, cancellationToken);
         if (pendingExists)
             throw new BusinessRuleException("You already have an account request waiting for bank approval.");
@@ -109,6 +114,8 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
         {
             if (application.Status is not (ApplicationStatuses.Pending or ApplicationStatuses.Rejected))
                 throw new BusinessRuleException("Only pending or rejected requests can be approved.");
+            if ((await accountRepository.GetAccountsAsync(application.UserId, false, cancellationToken)).Any(account => account.Status != AccountStatuses.Closed))
+                throw new BusinessRuleException("This customer already has an account. Only one account is allowed per customer.");
 
             var account = await AddAccountAsync(application.UserId, application.CustomerId, new OpenAccountRequest { AccountType = application.AccountType }, cancellationToken);
             application.Status = ApplicationStatuses.Approved;
@@ -141,41 +148,94 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
         return new AccountApplicationResponse { Id = application.Id, UserId = application.UserId, AccountType = application.AccountType, Purpose = application.Purpose ?? string.Empty, Status = application.Status, ReviewNote = application.ReviewNote ?? string.Empty, HasIdentityDocument = !string.IsNullOrWhiteSpace(application.IdentityDocumentUrl), HasIdentityBackDocument = !string.IsNullOrWhiteSpace(application.IdentityBackDocumentUrl), HasAddressDocument = !string.IsNullOrWhiteSpace(application.AddressDocumentUrl), HasSignature = !string.IsNullOrWhiteSpace(application.SignatureUrl), IdentityDocumentUrl = application.IdentityDocumentUrl, IdentityBackDocumentUrl = application.IdentityBackDocumentUrl, AddressDocumentUrl = application.AddressDocumentUrl, SignatureUrl = application.SignatureUrl, CreatedAccountId = application.CreatedAccountId, CreatedAtUtc = application.CreatedAtUtc };
     }
 
-    public async Task DebitAsync(Guid accountId, MoneyMovementRequest request, CancellationToken cancellationToken)
+    public Task DebitAsync(Guid accountId, MoneyMovementRequest request, CancellationToken cancellationToken) =>
+        PostAsync(accountId, request, isDebit: true, cancellationToken);
+
+    public Task CreditAsync(Guid accountId, MoneyMovementRequest request, CancellationToken cancellationToken) =>
+        PostAsync(accountId, request, isDebit: false, cancellationToken);
+
+    // Lets a resumed transfer saga find out whether a step it lost track of actually happened.
+    public Task<bool> MovementAppliedAsync(Guid accountId, string referenceNumber, bool isDebit, CancellationToken cancellationToken) =>
+        accountRepository.PostingAppliedAsync(accountId, $"{referenceNumber.Trim()}:{(isDebit ? "D" : "C")}:{accountId}", cancellationToken);
+
+    // A new account funded with an opening deposit (staff tooling, drills and benchmarks).
+    public async Task<AccountResponse> OpenFundedAccountAsync(OpenFundedAccountRequest request, CancellationToken cancellationToken)
     {
-        var account = await accountRepository.GetAccountByIdAsync(accountId, cancellationToken) ?? throw new NotFoundException("Account was not found.");
-       
+        if (request.UserId == Guid.Empty) throw new ValidationException("A user id is required.");
+        if (request.OpeningBalance < 0) throw new ValidationException("The opening balance cannot be negative.");
+
+        var account = await AddAccountAsync(request.UserId, Guid.Empty, new OpenAccountRequest { AccountType = request.AccountType }, cancellationToken);
+        if (request.OpeningBalance > 0)
+        {
+            await CreditAsync(account.Id, new MoneyMovementRequest { Amount = request.OpeningBalance, ReferenceNumber = $"OPEN-{account.AccountNumber}", Purpose = MovementPurposes.Opening }, cancellationToken);
+            account.Balance = request.OpeningBalance;
+        }
+
+        return account;
+    }
+
+    // ACID money movement: inside one database transaction in the account's province, the account row is
+    // locked, the balance changes and a balanced double-entry posting (customer leg + general-ledger leg) is
+    // written; all of it commits or none of it does. The idempotency key makes a retried call (e.g. a
+    // transfer saga resuming after a crash or a failover) a no-op instead of a second debit.
+    private async Task PostAsync(Guid accountId, MoneyMovementRequest request, bool isDebit, CancellationToken cancellationToken)
+    {
+        var side = isDebit ? "D" : "C";
+        var purpose = MovementPurposes.Normalize(request.Purpose, isDebit ? MovementPurposes.TransferOut : MovementPurposes.TransferIn);
+        var reference = string.IsNullOrWhiteSpace(request.ReferenceNumber) ? $"ADHOC-{Guid.NewGuid():N}" : request.ReferenceNumber.Trim();
+        var idempotencyKey = $"{reference}:{side}:{accountId}";
+
+        await using var locked = await accountRepository.LockAccountAsync(accountId, cancellationToken) ?? throw new NotFoundException("Account was not found.");
+        var account = locked.Account;
+        if (await accountRepository.LedgerPostingExistsAsync(idempotencyKey, cancellationToken))
+        {
+            // Already applied by an earlier attempt (which may not have been acknowledged yet).
+            await accountRepository.WaitForStandbyAsync(cancellationToken);
+            return;
+        }
+
         if (account.Status == AccountStatuses.Frozen)
             throw new BusinessRuleException("This account is frozen.");
         if (account.Status == AccountStatuses.Closed)
             throw new BusinessRuleException("This account is closed.");
-        if (account.Balance < request.Amount)
+        if (isDebit && account.Balance < request.Amount)
             throw new BusinessRuleException("Insufficient account balance.");
 
-        account.Balance -= request.Amount;
+        account.Balance += isDebit ? -request.Amount : request.Amount;
+        var now = DateTime.UtcNow;
+        var journalId = reference.EndsWith("-REFUND", StringComparison.Ordinal) ? reference[..^"-REFUND".Length] : reference;
+        accountRepository.AddLedgerEntries(
+            new LedgerEntry
+            {
+                Id = Guid.NewGuid(), JournalId = journalId, IdempotencyKey = idempotencyKey, Leg = 1,
+                LedgerAccount = LedgerAccounts.Customer(account.AccountNumber), AccountId = account.Id,
+                Debit = isDebit ? request.Amount : 0, Credit = isDebit ? 0 : request.Amount,
+                BalanceAfter = account.Balance, Purpose = purpose, CreatedAtUtc = now
+            },
+            new LedgerEntry
+            {
+                Id = Guid.NewGuid(), JournalId = journalId, IdempotencyKey = idempotencyKey, Leg = 2,
+                LedgerAccount = MovementPurposes.CounterAccount(purpose), AccountId = null,
+                Debit = isDebit ? 0 : request.Amount, Credit = isDebit ? request.Amount : 0,
+                Purpose = purpose, CreatedAtUtc = now
+            });
+
         await accountRepository.SaveAccountChangesAsync(cancellationToken);
+        await locked.CommitAsync(cancellationToken);
+        await locked.DisposeAsync();
+        // Acknowledge only once the standby holds the posting, so a failover cannot lose a confirmed movement.
+        await accountRepository.WaitForStandbyAsync(cancellationToken);
         await cacheService.SetAsync(BalanceCacheKey(account.Id), account.Balance, TimeSpan.FromMinutes(5), cancellationToken);
     }
 
-    public async Task CreditAsync(Guid accountId, MoneyMovementRequest request, CancellationToken cancellationToken)
+    // The number is reserved in the bank-wide account directory, whose primary key keeps it unique.
+    private async Task<string> CreateAccountNumberAsync(Guid accountId, Guid userId, CancellationToken cancellationToken)
     {
-        var account = await accountRepository.GetAccountByIdAsync(accountId, cancellationToken) ?? throw new NotFoundException("Account was not found.");
-        if (account.Status == AccountStatuses.Frozen)
-            throw new BusinessRuleException("This account is frozen.");
-        if (account.Status == AccountStatuses.Closed)
-            throw new BusinessRuleException("This account is closed.");
-
-        account.Balance += request.Amount;
-        await accountRepository.SaveAccountChangesAsync(cancellationToken);
-        await cacheService.SetAsync(BalanceCacheKey(account.Id), account.Balance, TimeSpan.FromMinutes(5), cancellationToken);
-    }
-
-    private async Task<string> CreateAccountNumberAsync(CancellationToken cancellationToken)
-    {
+        var region = await accountRepository.RegionOfUserAsync(userId, cancellationToken);
         while (true)
         {
             var accountNumber = $"10{Random.Shared.NextInt64(1000000000, 9999999999)}";
-            if (!await accountRepository.AccountNumberExistsAsync(accountNumber, cancellationToken))
+            if (await accountRepository.TryReserveAccountNumberAsync(accountNumber, accountId, region, cancellationToken))
             {
                 return accountNumber;
             }

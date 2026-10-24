@@ -37,7 +37,7 @@ public sealed class TransferSagaRecoveryHostedService(IServiceScopeFactory scope
                     {
                         if (DateTime.UtcNow - transaction.CreatedAtUtc > GiveUpAfter)
                         {
-                            GiveUp(saga, transaction);
+                            GiveUp(saga, transaction, transactionRepository);
                         }
                         else
                         {
@@ -61,17 +61,31 @@ public sealed class TransferSagaRecoveryHostedService(IServiceScopeFactory scope
 
     private static async Task AdvanceAsync(TransferSaga saga, BankTransaction transaction, ITransactionRepository transactionRepository, AccountLedgerClient accountLedgerClient, CancellationToken cancellationToken)
     {
+        if (saga.State == TransferSagaStates.Started && saga.RetryAfterUtc is null)
+        {
+            // Abandoned, not deferred: the request died before recording the debit (e.g. its province failed over)
+            // and its caller was told it failed. Finish it only if the money already left; otherwise fail it, so a
+            // transfer the customer may have retried is never also carried out later.
+            if (!await accountLedgerClient.MovementAppliedAsync(saga.SourceAccountId, transaction.ReferenceNumber, "debit", cancellationToken))
+            {
+                Fail(saga, transaction, transactionRepository);
+                return;
+            }
+
+            saga.State = TransferSagaStates.Debited;
+        }
+
         if (saga.State == TransferSagaStates.Started)
         {
             if (saga.DestinationAccountId == Guid.Empty && !await ResolveAccountsAsync(saga, transaction, accountLedgerClient, cancellationToken))
             {
-                Fail(saga, transaction);
+                Fail(saga, transaction, transactionRepository);
                 return;
             }
 
             try
             {
-                await accountLedgerClient.DebitAsync(saga.SourceAccountId, saga.Amount, transaction.ReferenceNumber, cancellationToken);
+                await accountLedgerClient.DebitAsync(saga.SourceAccountId, saga.Amount, transaction.ReferenceNumber, "TransferOut", cancellationToken);
             }
             catch (ServiceUnavailableException)
             {
@@ -79,7 +93,7 @@ public sealed class TransferSagaRecoveryHostedService(IServiceScopeFactory scope
             }
             catch
             {
-                Fail(saga, transaction);
+                Fail(saga, transaction, transactionRepository);
                 return;
             }
 
@@ -92,7 +106,7 @@ public sealed class TransferSagaRecoveryHostedService(IServiceScopeFactory scope
             try
             {
                 var destination = await accountLedgerClient.GetInternalEmployeeAccountByIdAsync(saga.DestinationAccountId, cancellationToken);
-                await accountLedgerClient.CreditAsync(saga.DestinationAccountId, saga.Amount, transaction.ReferenceNumber, cancellationToken);
+                await accountLedgerClient.CreditAsync(saga.DestinationAccountId, saga.Amount, transaction.ReferenceNumber, "TransferIn", cancellationToken);
                 transaction.Status = TransactionStatuses.Completed;
                 saga.State = TransferSagaStates.Completed;
                 saga.RetryAfterUtc = null;
@@ -112,10 +126,12 @@ public sealed class TransferSagaRecoveryHostedService(IServiceScopeFactory scope
 
         if (saga.State == TransferSagaStates.Compensating)
         {
-            await accountLedgerClient.CreditAsync(saga.SourceAccountId, saga.Amount, $"{transaction.ReferenceNumber}-REFUND", cancellationToken);
+            await accountLedgerClient.CreditAsync(saga.SourceAccountId, saga.Amount, $"{transaction.ReferenceNumber}-REFUND", "Refund", cancellationToken);
             transaction.Status = TransactionStatuses.Compensated;
             saga.State = TransferSagaStates.Compensated;
             saga.RetryAfterUtc = null;
+            transactionRepository.AddRefund(transaction);
+            transactionRepository.AddTransactionEvent(new TransferRefundedEvent { TransactionId = transaction.Id, SourceAccountId = saga.SourceAccountId, UserId = transaction.UserId, Amount = saga.Amount, ReferenceNumber = transaction.ReferenceNumber, Reason = "It could not be delivered to the receiving account." });
         }
     }
 
@@ -148,11 +164,11 @@ public sealed class TransferSagaRecoveryHostedService(IServiceScopeFactory scope
         return true;
     }
 
-    private static void GiveUp(TransferSaga saga, BankTransaction transaction)
+    private static void GiveUp(TransferSaga saga, BankTransaction transaction, ITransactionRepository transactionRepository)
     {
         if (saga.State == TransferSagaStates.Started)
         {
-            Fail(saga, transaction);
+            Fail(saga, transaction, transactionRepository);
         }
         else if (saga.State == TransferSagaStates.Debited)
         {
@@ -160,10 +176,12 @@ public sealed class TransferSagaRecoveryHostedService(IServiceScopeFactory scope
         }
     }
 
-    private static void Fail(TransferSaga saga, BankTransaction transaction)
+    // Nothing was taken from the sender; tell them the transfer did not go through.
+    private static void Fail(TransferSaga saga, BankTransaction transaction, ITransactionRepository transactionRepository)
     {
         transaction.Status = TransactionStatuses.Failed;
         saga.State = TransferSagaStates.Failed;
         saga.RetryAfterUtc = null;
+        transactionRepository.AddTransactionEvent(new TransferFailedEvent { TransactionId = transaction.Id, SourceAccountId = saga.SourceAccountId, UserId = transaction.UserId, Amount = saga.Amount, ReferenceNumber = transaction.ReferenceNumber });
     }
 }

@@ -9,6 +9,16 @@ public sealed class MoneyMovementRequest
 {
     public decimal Amount { get; set; }
     public string ReferenceNumber { get; set; } = string.Empty;
+
+    // Deposit, Withdrawal, TransferOut, TransferIn or Refund: picks the general-ledger side of the posting.
+    public string Purpose { get; set; } = string.Empty;
+}
+
+public sealed class OpenFundedAccountRequest
+{
+    public Guid UserId { get; set; }
+    public string AccountType { get; set; } = "Savings";
+    public decimal OpeningBalance { get; set; }
 }
 
 public sealed class AccountApplicationResponse

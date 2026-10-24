@@ -15,7 +15,8 @@ public sealed class AuthService(
     IIdentityRepository identityRepository,
     JwtTokenIssuer tokenIssuer,
     PasswordHasher<User> passwordHasher,
-    IOptions<JwtOptions> jwtOptions)
+    IOptions<JwtOptions> jwtOptions,
+    CustomerProfileClient customerProfileClient)
 {
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
@@ -23,6 +24,12 @@ public sealed class AuthService(
         if (await identityRepository.EmailExistsAsync(email, cancellationToken))
         {
             throw new ConflictException("An account with this email already exists.");
+        }
+
+        // One person (CNIC), one customer.
+        if (await customerProfileClient.NationalIdTakenAsync(request.NationalId, cancellationToken))
+        {
+            throw new ConflictException("A customer with this CNIC is already registered.");
         }
 
         var user = new User
@@ -38,7 +45,7 @@ public sealed class AuthService(
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
         identityRepository.AddUser(user);
-        identityRepository.AddEvent(new CustomerRegisteredEvent
+        var registration = new CustomerRegisteredEvent
         {
             UserId = user.Id,
             Email = user.Email,
@@ -47,9 +54,11 @@ public sealed class AuthService(
             PhoneNumber = request.PhoneNumber.Trim(),
             Address = request.Address.Trim(),
             Region = user.Region
-        });
+        };
+        identityRepository.AddEvent(registration);
 
         await identityRepository.SaveChangesAsync(cancellationToken);
+        await customerProfileClient.SendAsync(registration, cancellationToken);
         return await IssueTokensAsync(user, cancellationToken);
     }
 

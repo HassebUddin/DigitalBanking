@@ -1,25 +1,37 @@
+using System.Data;
 using DigitalBanking.Account.Api.Domain;
 using DigitalBanking.Account.Api.Infrastructure;
 using DigitalBanking.BuildingBlocks.Outbox;
 using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Contracts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DigitalBanking.Account.Api.Repository;
 
 // Accounts and account requests live in their owner's province database.
-// Lookups by id or number search every province and pin the one where the row was found,
-// so the following changes and events are saved in that same database.
-public sealed class AccountRepository(RegionalDb<AccountDbContext> db) : IAccountRepository
+// Account lookups ask the global account directory which province holds the account and go straight there;
+// only accounts missing from the directory fall back to searching every province. The province where the
+// row was found is pinned, so the following changes and events are saved in that same database.
+public sealed class AccountRepository(RegionalDb<AccountDbContext> db, AccountDirectory directory, IUserRegionDirectory users, StandbyAcknowledger standby) : IAccountRepository
 {
+    // Synchronous commit: returns once the province's standby holds everything committed so far; strict, so a
+    // movement that cannot be confirmed is reported as unavailable and retried (idempotently) by the caller.
+    public Task WaitForStandbyAsync(CancellationToken cancellationToken)
+    {
+        return standby.WaitAsync(db.CurrentRegion, strict: true, cancellationToken);
+    }
+
     public Task<BankAccount?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        return db.FindAsync(context => context.Accounts.FirstOrDefaultAsync(account => account.Id == accountId, cancellationToken));
+        return FindAsync(directory.RegionOfAsync(accountId, cancellationToken),
+            context => context.Accounts.FirstOrDefaultAsync(account => account.Id == accountId, cancellationToken));
     }
 
     public Task<BankAccount?> GetAccountByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken)
     {
-        return db.FindAsync(context => context.Accounts.FirstOrDefaultAsync(account => account.AccountNumber == accountNumber, cancellationToken));
+        return FindAsync(directory.RegionOfAsync(accountNumber, cancellationToken),
+            context => context.Accounts.FirstOrDefaultAsync(account => account.AccountNumber == accountNumber, cancellationToken));
     }
 
     public async Task<IReadOnlyList<BankAccount>> GetAccountsAsync(Guid userId, bool isAdmin, CancellationToken cancellationToken)
@@ -31,15 +43,90 @@ public sealed class AccountRepository(RegionalDb<AccountDbContext> db) : IAccoun
         return accounts.OrderByDescending(account => account.CreatedAtUtc).ToList();
     }
 
-    // Account numbers are unique across the whole bank.
-    public Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken)
+    public Task<string> RegionOfUserAsync(Guid userId, CancellationToken cancellationToken)
     {
-        return db.AnyAsync(context => context.Accounts.AnyAsync(account => account.AccountNumber == accountNumber, cancellationToken));
+        return users.GetRegionAsync(userId, cancellationToken);
+    }
+
+    // Account numbers are unique across the whole bank: the directory's primary key enforces it.
+    public Task<bool> TryReserveAccountNumberAsync(string accountNumber, Guid accountId, string region, CancellationToken cancellationToken)
+    {
+        return directory.TryReserveAsync(accountNumber, accountId, region, cancellationToken);
     }
 
     public async Task AddAccountAsync(BankAccount account, CancellationToken cancellationToken)
     {
         (await db.ForUserAsync(account.UserId, cancellationToken)).Accounts.Add(account);
+    }
+
+    // Opens a transaction in the account's province and locks its row (UPDLOCK) until commit, so concurrent
+    // debits and credits on one account run one after another: no lost update, no overdraft race.
+    public async Task<AccountLock?> LockAccountAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        var region = await directory.RegionOfAsync(accountId, cancellationToken);
+        if (region is null)
+        {
+            foreach (var candidate in BankRegions.All)
+            {
+                if (await db.For(candidate).Accounts.AsNoTracking().AnyAsync(account => account.Id == accountId, cancellationToken))
+                {
+                    region = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (region is null)
+        {
+            return null;
+        }
+
+        db.Pin(region);
+        var context = db.Current;
+        var alreadyTracked = context.ChangeTracker.Entries<BankAccount>().Any(entry => entry.Entity.Id == accountId);
+        var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        var account = await context.Accounts
+            .FromSqlInterpolated($"SELECT * FROM [account].[Accounts] WITH (UPDLOCK, ROWLOCK) WHERE [Id] = {accountId}")
+            .AsTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+        if (account is null)
+        {
+            await transaction.DisposeAsync();
+            return null;
+        }
+
+        if (alreadyTracked)
+        {
+            // Loaded earlier in this request: refresh it now that the row is locked.
+            await context.Entry(account).ReloadAsync(cancellationToken);
+        }
+
+        return new AccountLock(account, transaction);
+    }
+
+    public Task<bool> LedgerPostingExistsAsync(string idempotencyKey, CancellationToken cancellationToken)
+    {
+        return db.Current.LedgerEntries.AnyAsync(entry => entry.IdempotencyKey == idempotencyKey, cancellationToken);
+    }
+
+    // Whether a movement with this idempotency key was applied to the account (in its own province).
+    public async Task<bool> PostingAppliedAsync(Guid accountId, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        var region = await directory.RegionOfAsync(accountId, cancellationToken);
+        foreach (var candidate in region is null ? BankRegions.All : [region])
+        {
+            if (await db.For(candidate).LedgerEntries.AnyAsync(entry => entry.IdempotencyKey == idempotencyKey, cancellationToken))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public void AddLedgerEntries(params LedgerEntry[] entries)
+    {
+        db.Current.LedgerEntries.AddRange(entries);
     }
 
     public Task<AccountApplication?> GetAccountApplicationByIdAsync(Guid applicationId, CancellationToken cancellationToken)
@@ -77,4 +164,24 @@ public sealed class AccountRepository(RegionalDb<AccountDbContext> db) : IAccoun
     {
         return db.SaveChangesAsync(cancellationToken);
     }
+
+    private async Task<BankAccount?> FindAsync(Task<string?> indexedRegion, Func<AccountDbContext, Task<BankAccount?>> query)
+    {
+        if (await indexedRegion is { } region && await db.FindInAsync(region, query) is { } account)
+        {
+            return account;
+        }
+
+        return await db.FindAsync(query);
+    }
+}
+
+public sealed class AccountLock(BankAccount account, IDbContextTransaction transaction) : IAsyncDisposable
+{
+    public BankAccount Account { get; } = account;
+
+    public Task CommitAsync(CancellationToken cancellationToken) => transaction.CommitAsync(cancellationToken);
+
+    // Not committed: rolled back, and the row lock is released.
+    public ValueTask DisposeAsync() => transaction.DisposeAsync();
 }

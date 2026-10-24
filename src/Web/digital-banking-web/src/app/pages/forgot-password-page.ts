@@ -53,6 +53,12 @@ export class ForgotPasswordPage {
     this.authService.forgotPassword(this.email).subscribe({
       next: (response) => {
         this.busy.set(false);
+        // No code comes back when no account uses this email: stay here instead of opening an empty reset form.
+        if (!response.resetCode) {
+          this.error.set('No account was found with this email. Check the spelling and try again.');
+          return;
+        }
+
         this.resetCode.set(response.resetCode);
         void this.router.navigate(['/reset-password'], { queryParams: { email: this.email, code: response.resetCode } });
       },

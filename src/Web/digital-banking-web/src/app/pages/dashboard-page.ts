@@ -66,7 +66,7 @@ import { holdSkeleton } from '../ui/hold-skeleton';
 
         <div class="action-grid">
           <a class="rise delay-2" routerLink="/transfer"><span class="action-ico"><app-icon name="send" /></span>Send money</a>
-          <a class="rise delay-3" routerLink="/accounts"><span class="action-ico"><app-icon name="plus" /></span>Add money</a>
+          <a class="rise delay-3" routerLink="/accounts"><span class="action-ico"><app-icon name="plus" /></span>Money transaction</a>
           <a class="rise delay-4" routerLink="/transactions"><span class="action-ico"><app-icon name="history" /></span>History</a>
           <a class="rise delay-5" routerLink="/chat"><span class="action-ico"><app-icon name="support" /></span>Help</a>
         </div>
@@ -126,8 +126,8 @@ import { holdSkeleton } from '../ui/hold-skeleton';
                 <strong>{{ transaction.transactionType }}</strong>
                 <p>{{ transaction.description || transaction.referenceNumber }}</p>
               </div>
-              <b [class.amount-in]="transaction.transactionType === 'Deposit'" [class.amount-out]="transaction.transactionType !== 'Deposit'">
-                {{ transaction.transactionType === 'Deposit' ? '+' : '-' }}{{ formatMoney(transaction.amount) }}
+              <b [class.amount-in]="isIn(transaction)" [class.amount-out]="!isIn(transaction)">
+                {{ isIn(transaction) ? '+' : '-' }}{{ formatMoney(transaction.amount) }}
               </b>
             </article>
           }
@@ -140,6 +140,14 @@ import { holdSkeleton } from '../ui/hold-skeleton';
 export class DashboardPage implements OnInit {
   profile = signal<CustomerProfile | null>(null);
   accounts = signal<BankAccount[]>([]);
+
+  // Money in: a deposit, or a transfer received by one of my accounts from someone else's.
+  isIn(transaction: BankTransaction) {
+    if (transaction.transactionType === 'Deposit' || transaction.transactionType === 'Refund') return true;
+    const mine = new Set(this.accounts().map((account) => account.id));
+    return transaction.transactionType === 'Transfer'
+      && !!transaction.counterpartyAccountId && mine.has(transaction.counterpartyAccountId) && !mine.has(transaction.accountId);
+  }
   recent = signal<BankTransaction[]>([]);
   applications = signal<AccountApplication[]>([]);
   photo = signal('');

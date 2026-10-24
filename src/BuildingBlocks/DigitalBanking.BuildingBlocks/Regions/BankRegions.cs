@@ -38,6 +38,10 @@ public static class BankRegions
         _ => "Punjab"
     };
 
+    // The other node of a province's pair: DigitalBanking_Sindh_A <-> DigitalBanking_Sindh_B.
+    public static string StandbyOf(string database) =>
+        database.EndsWith("_A", StringComparison.OrdinalIgnoreCase) ? database[..^1] + "B" : database[..^1] + "A";
+
     // Same names the admin's regional data plane uses, so real and simulated data share the 4 databases.
     public static string DatabaseName(string region, char node = 'A') => Normalize(region) switch
     {

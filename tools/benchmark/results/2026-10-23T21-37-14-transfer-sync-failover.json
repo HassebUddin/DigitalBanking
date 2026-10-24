@@ -1,0 +1,398 @@
+{
+  "startedAt": "2026-10-23T21:37:14.193Z",
+  "gateway": "http://localhost:5000",
+  "scenario": "transfer",
+  "duration": 60,
+  "concurrency": 6,
+  "commitMode": "sync",
+  "drill": "failover",
+  "drillRegion": "punjab",
+  "requests": 212,
+  "succeeded": 171,
+  "failed": 41,
+  "throughputPerSecond": 2.9,
+  "latencyMs": {
+    "p50": 1330.3,
+    "p95": 4869.7,
+    "p99": 11035.1,
+    "max": 11282.8
+  },
+  "byOperation": [
+    {
+      "op": "transfer-cross",
+      "requests": 186,
+      "ok": 149,
+      "p50": 1399.9,
+      "p95": 4931.1,
+      "p99": 11035.1
+    },
+    {
+      "op": "transfer-local",
+      "requests": 26,
+      "ok": 22,
+      "p50": 1245.8,
+      "p95": 4129.9,
+      "p99": 4764.7
+    }
+  ],
+  "errors": [
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_KP_B did not confirm within 3s). Please retry.",
+      "count": 6
+    },
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_Punjab_B did not confirm within 3s). Please retry.",
+      "count": 3
+    },
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_Sindh_B did not confirm within 3s). Please retry.",
+      "count": 5
+    },
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_Balochistan_B did not confirm within 3s). Please retry.",
+      "count": 2
+    },
+    {
+      "error": "503 service_unavailable: This region is switching to its standby database. Please retry in a few seconds.",
+      "count": 25
+    }
+  ],
+  "transfersAcceptedAsPending": 0,
+  "unavailableWindowSeconds": {
+    "from": 3,
+    "to": 50,
+    "secondsWithErrors": 13
+  },
+  "drillEvents": [
+    {
+      "t": 20,
+      "event": "punjab-a taken OFFLINE"
+    },
+    {
+      "t": 31.8,
+      "event": "punjab-b promoted to primary"
+    },
+    {
+      "t": 40,
+      "event": "punjab-a brought back ONLINE"
+    }
+  ],
+  "ledger": {
+    "before": {
+      "balanced": true,
+      "deposits": 70000449,
+      "postings": 8101
+    },
+    "after": {
+      "balanced": true,
+      "deposits": 70000449,
+      "postings": 8447,
+      "transfersInFlight": -208,
+      "mismatchedAccounts": 0,
+      "unbalancedPostings": 0
+    },
+    "moneyConserved": true
+  },
+  "timeline": [
+    {
+      "second": 0,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 1,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 2,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 3,
+      "ok": 0,
+      "failed": 6
+    },
+    {
+      "second": 4,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 5,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 6,
+      "ok": 0,
+      "failed": 5
+    },
+    {
+      "second": 7,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 8,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 9,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 10,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 11,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 12,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 13,
+      "ok": 2,
+      "failed": 0
+    },
+    {
+      "second": 14,
+      "ok": 4,
+      "failed": 0
+    },
+    {
+      "second": 15,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 16,
+      "ok": 2,
+      "failed": 0
+    },
+    {
+      "second": 17,
+      "ok": 4,
+      "failed": 0
+    },
+    {
+      "second": 18,
+      "ok": 2,
+      "failed": 0
+    },
+    {
+      "second": 19,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 20,
+      "ok": 3,
+      "failed": 4
+    },
+    {
+      "second": 21,
+      "ok": 2,
+      "failed": 2
+    },
+    {
+      "second": 22,
+      "ok": 2,
+      "failed": 1
+    },
+    {
+      "second": 23,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 24,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 25,
+      "ok": 2,
+      "failed": 5
+    },
+    {
+      "second": 26,
+      "ok": 2,
+      "failed": 1
+    },
+    {
+      "second": 27,
+      "ok": 6,
+      "failed": 8
+    },
+    {
+      "second": 28,
+      "ok": 5,
+      "failed": 4
+    },
+    {
+      "second": 29,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 30,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 31,
+      "ok": 0,
+      "failed": 2
+    },
+    {
+      "second": 32,
+      "ok": 6,
+      "failed": 0
+    },
+    {
+      "second": 33,
+      "ok": 4,
+      "failed": 0
+    },
+    {
+      "second": 34,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 35,
+      "ok": 4,
+      "failed": 0
+    },
+    {
+      "second": 36,
+      "ok": 6,
+      "failed": 0
+    },
+    {
+      "second": 37,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 38,
+      "ok": 5,
+      "failed": 0
+    },
+    {
+      "second": 39,
+      "ok": 4,
+      "failed": 0
+    },
+    {
+      "second": 40,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 41,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 42,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 43,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 44,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 45,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 46,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 47,
+      "ok": 0,
+      "failed": 1
+    },
+    {
+      "second": 48,
+      "ok": 0,
+      "failed": 1
+    },
+    {
+      "second": 49,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 50,
+      "ok": 0,
+      "failed": 1
+    },
+    {
+      "second": 51,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 52,
+      "ok": 1,
+      "failed": 0
+    },
+    {
+      "second": 53,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 54,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 55,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 56,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 57,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 58,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 59,
+      "ok": 6,
+      "failed": 0
+    }
+  ]
+}

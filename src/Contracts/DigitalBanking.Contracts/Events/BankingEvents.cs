@@ -68,6 +68,28 @@ public sealed record MoneyTransferredEvent : IntegrationEvent
     public string ReferenceNumber { get; init; } = string.Empty;
 }
 
+// A transfer that ended without moving any money (e.g. insufficient balance, wrong account).
+public sealed record TransferFailedEvent : IntegrationEvent
+{
+    public Guid TransactionId { get; init; }
+    public Guid SourceAccountId { get; init; }
+    public Guid UserId { get; init; }
+    public decimal Amount { get; init; }
+    public string ReferenceNumber { get; init; } = string.Empty;
+    public string Reason { get; init; } = string.Empty;
+}
+
+// A transfer whose money had left the sender but could not be delivered, so it was rolled back to the sender.
+public sealed record TransferRefundedEvent : IntegrationEvent
+{
+    public Guid TransactionId { get; init; }
+    public Guid SourceAccountId { get; init; }
+    public Guid UserId { get; init; }
+    public decimal Amount { get; init; }
+    public string ReferenceNumber { get; init; } = string.Empty;
+    public string Reason { get; init; } = string.Empty;
+}
+
 public sealed record AccountApplicationRejectedEvent : IntegrationEvent
 {
     public Guid ApplicationId { get; init; }

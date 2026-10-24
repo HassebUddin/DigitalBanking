@@ -1,5 +1,6 @@
 using DigitalBanking.BuildingBlocks.Authentication;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Security;
 using DigitalBanking.Customer.Api.Application;
 using DigitalBanking.Customer.Api.Contracts;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +17,26 @@ public sealed class CustomersController(CustomerService customerService, Current
     public async Task<ActionResult<CustomerResponse>> GetOrCreateCustomerProfile(CancellationToken cancellationToken)
     {
         return Ok(await customerService.GetOrCreateCustomerProfileAsync(currentUser.UserId, currentUser.Email, currentUser.FullName, cancellationToken));
+    }
+
+    // Called by the identity service right after registration, so the profile has the CNIC and phone the
+    // customer typed even when the message bus is not running (the CustomerRegistered event remains as backup).
+    [AllowAnonymous]
+    [InternalApiKey]
+    [HttpPost("internal/register")]
+    public async Task<IActionResult> RegisterProfile(RegisteredCustomerRequest request, CancellationToken cancellationToken)
+    {
+        await customerService.CreateCustomerFromRegistrationAsync(request.UserId, request.Email, request.FullName, request.NationalId, request.PhoneNumber, request.Address, request.Region, cancellationToken);
+        return NoContent();
+    }
+
+    // Registration asks this first: one CNIC may belong to only one customer in the whole bank.
+    [AllowAnonymous]
+    [InternalApiKey]
+    [HttpGet("internal/national-id-taken")]
+    public async Task<IActionResult> NationalIdTaken([FromQuery] string nationalId, CancellationToken cancellationToken)
+    {
+        return Ok(new { taken = await customerService.NationalIdTakenAsync(nationalId, cancellationToken) });
     }
 
     [HttpPut("update-customer")]

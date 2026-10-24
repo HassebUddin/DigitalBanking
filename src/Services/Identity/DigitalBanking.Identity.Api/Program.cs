@@ -1,3 +1,4 @@
+using DigitalBanking.BuildingBlocks.Http;
 using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.Identity.Api.Application;
@@ -17,6 +18,12 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IEmployeeRepository, EmployeeRepository>();
 builder.Services.AddSingleton<PasswordHasher<User>>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.Configure<ServiceEndpoints>(builder.Configuration.GetSection(ServiceEndpoints.SectionName));
+builder.Services.AddHttpClient<CustomerProfileClient>((serviceProvider, httpClient) =>
+{
+    httpClient.BaseAddress = new Uri(serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ServiceEndpoints>>().Value.Customer);
+    httpClient.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<EmployeeService>();
 

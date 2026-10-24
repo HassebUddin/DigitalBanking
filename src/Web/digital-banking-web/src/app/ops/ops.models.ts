@@ -245,6 +245,8 @@ export interface OpsOverview {
   rules: TrafficRule[];
   insights: Insight[];
   clusters: ClusterView[];
+  /** Money movements wait for the standby before they are acknowledged (RPO 0). */
+  synchronousCommit: boolean;
   pods: ServicePods[];
   events: OpsEvent[];
   jobs: CustomerBatch[];
@@ -319,7 +321,11 @@ export interface CustomerSearchResult {
   engine: string;
   strategy: string;
   tookMs: number;
-  regions: { province: string; node: string; role: string; tookMs: number; hits: number; error: string | null }[];
+  regions: { province: string; node: string; role: string; tookMs: number; hits: number; total: number; error: string | null }[];
+  page: number;
+  pageSize: number;
+  /** Matching customers (an all-regions list is capped at 200 pages). */
+  total: number;
 }
 
 export interface RegionInfo {
@@ -346,6 +352,11 @@ export interface DbNodeView {
   sizeMb: number;
   lastError: string | null;
   lastCheckUtc: string;
+  /** Network partition drill: the coordinator cannot reach this node (services still can). */
+  partitioned: boolean;
+  /** Holds a valid primary lease: the only node of its region that accepts banking writes. */
+  holdsLease: boolean;
+  leaseRenewedUtc: string | null;
 }
 
 export interface ClusterView {
@@ -363,6 +374,46 @@ export interface ClusterView {
   lostRows: number;
   customers: number;
   nodes: DbNodeView[];
+  /** Leader term: raised on every promotion. */
+  epoch: number;
+  /** Primary lost; waiting for its lease to run out (fencing) before promoting the standby. */
+  waitingForLease: boolean;
+  /** Real banking tables (accounts, ledger, transactions, ...) shipped to the standby by change tracking. */
+  bankRowsShipped: number;
+  bankLastShippedUtc: string | null;
+  bankVersion: number;
+  bankRebuilds: number;
+  /** Writes a former primary accepted that never reached the new one, kept for reconciliation. */
+  divergedRows: number;
+}
+
+export interface LedgerRegionCheck {
+  region: string;
+  database: string;
+  postings: number;
+  debits: number;
+  credits: number;
+  balanced: boolean;
+  unbalancedPostings: number;
+  accounts: number;
+  mismatchedAccounts: number;
+  deposits: number;
+  clearingNet: number;
+  cashNet: number;
+}
+
+export interface LedgerCheck {
+  balanced: boolean;
+  postings: number;
+  debits: number;
+  credits: number;
+  unbalancedPostings: number;
+  accounts: number;
+  mismatchedAccounts: number;
+  deposits: number;
+  transfersInFlight: number;
+  regions: LedgerRegionCheck[];
+  checkedAtUtc: string;
 }
 
 export interface PodView {

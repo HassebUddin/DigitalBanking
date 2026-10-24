@@ -458,7 +458,9 @@
 .ops-content { min-height: 0; overflow-y: auto; }
 // Chat keeps its messenger design, presented as a docked conversation window inside the console.
 .ops-content.legacy { padding: 1.5rem; background: var(--ops-bg); }
-.ops-content.legacy > * {
+// <router-outlet> is an empty sibling of the routed page: it must not become a second (blank) window.
+.ops-content.legacy > router-outlet { display: none; }
+.ops-content.legacy > :not(router-outlet) {
   display: block;
   max-width: 1280px;
   height: 100%;
@@ -834,7 +836,9 @@
 .ops-ui .job-meta { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.45rem; color: var(--ops-muted); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
 .ops-ui .job-meta .link-btn { margin-left: auto; }
 
-.ops-ui .search-row { display: grid; grid-template-columns: minmax(0, 1fr) 200px auto; gap: 0.6rem; }
+// Query, province, city, button on one line.
+.ops-ui .search-row { display: grid; grid-template-columns: minmax(0, 1fr) 180px 180px auto; gap: 0.6rem; align-items: center; }
+.ops-ui .search-row select:disabled { opacity: 0.55; cursor: not-allowed; }
 
 // Health page
 .ops-ui .service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.8rem; }
@@ -1173,6 +1177,7 @@
 .ops-ui .repl.broken i::after { animation: none; background: repeating-linear-gradient(90deg, var(--critical) 0 4px, transparent 4px 10px); }
 .ops-ui .db-node {
   display: grid;
+  min-width: 0;
   gap: 0.35rem;
   padding: 0.75rem;
   border: 1px solid var(--ops-line);
@@ -1191,6 +1196,29 @@
 .ops-ui .cluster-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; }
 .ops-ui .spacer { flex: 1; }
 .ops-ui .cluster-stats { margin: 0; color: var(--ops-muted); font-size: 0.74rem; }
+.ops-ui .cluster-epoch { color: var(--ops-muted); font-size: 0.7rem; font-weight: 700; margin-left: 0.4rem; }
+.ops-ui .db-node > * { min-width: 0; }
+.ops-ui .db-node dl { overflow: hidden; }
+.ops-ui .lease-badge {
+  justify-self: start;
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  background: rgb(var(--good-rgb) / 0.16);
+  color: var(--good-ink);
+}
+.ops-ui .lease-badge[data-lease='fenced'] { background: rgb(var(--critical-rgb) / 0.16); color: var(--bad-ink); }
+.ops-ui .lease-badge[data-lease='follower'] { background: var(--ops-surface); color: var(--ops-muted); }
+.ops-ui .lease-badge[data-lease='partitioned'] { background: rgb(var(--warning-rgb) / 0.18); color: var(--warn-ink); }
+.ops-ui .data-tier-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; }
+.ops-ui .ledger-check { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--ops-grid); }
+.ops-ui .ledger-check table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.ops-ui .ledger-check th, .ops-ui .ledger-check td { padding: 0.35rem 0.5rem; text-align: right; border-bottom: 1px solid var(--ops-grid); }
+.ops-ui .ledger-check th:first-child, .ops-ui .ledger-check td:first-child { text-align: left; }
+.ops-ui .ledger-check .table-wrap { overflow-x: auto; }
+.ops-ui .ledger-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0 0 0.6rem; font-size: 0.82rem; }
 
 // ---- Database explorer ----------------------------------------------------------------------
 .ops-ui .explorer { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 1rem; align-items: start; }
@@ -1312,7 +1340,7 @@
   .ops-ui .node-pair { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
   .ops-ui .filter-row { grid-template-columns: minmax(0, 1fr); }
   .ops-content.legacy { padding: 0; }
-  .ops-content.legacy > * { border-radius: 0; }
+  .ops-content.legacy > :not(router-outlet) { border-radius: 0; }
 }
 // ---- Reset dialog and theme toggle ------------------------------------------------------------
 .ops-dialog-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(5, 10, 10, 0.55); animation: opsFade 0.15s ease both; }

@@ -62,10 +62,30 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
         await customerRepository.SaveCustomerChangesAsync(cancellationToken);
     }
 
+    public Task<bool> NationalIdTakenAsync(string nationalId, CancellationToken cancellationToken)
+    {
+        var cnic = nationalId.Trim();
+        return cnic.Length == 0 ? Task.FromResult(false) : customerRepository.CustomerExistsByNationalIdAsync(cnic, cancellationToken);
+    }
+
     public async Task CreateCustomerFromRegistrationAsync(Guid userId, string email, string fullName, string nationalId, string phoneNumber, string address, string region, CancellationToken cancellationToken)
     {
-        if (await customerRepository.CustomerExistsByUserIdAsync(userId, cancellationToken))
+        // The app may already have created a placeholder profile (the customer signed in before this event
+        // arrived): fill in what they gave at registration instead of dropping it.
+        if (await customerRepository.GetCustomerByUserIdAsync(userId, cancellationToken) is { } existing)
         {
+            var cnic = nationalId.Trim();
+            if (existing.NationalId.StartsWith("TMP-", StringComparison.Ordinal) && cnic.Length > 0
+                && !await customerRepository.CustomerExistsByNationalIdAsync(cnic, cancellationToken))
+            {
+                existing.NationalId = cnic;
+            }
+
+            if (string.IsNullOrWhiteSpace(existing.PhoneNumber)) existing.PhoneNumber = phoneNumber.Trim();
+            if (string.IsNullOrWhiteSpace(existing.Address)) existing.Address = address.Trim();
+            if (string.IsNullOrWhiteSpace(existing.Region)) existing.Region = region;
+            existing.UpdatedAtUtc = DateTime.UtcNow;
+            await customerRepository.SaveCustomerChangesAsync(cancellationToken);
             return;
         }
 

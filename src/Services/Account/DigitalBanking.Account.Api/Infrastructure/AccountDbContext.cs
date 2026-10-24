@@ -9,6 +9,7 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
     public DbSet<BankAccount> Accounts => Set<BankAccount>();
     public DbSet<AccountApplication> Applications => Set<AccountApplication>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,6 +40,22 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
             entity.Property(application => application.SignatureUrl).HasMaxLength(400);
             entity.Property(application => application.Status).HasMaxLength(32).IsRequired();
             entity.Property(application => application.ReviewNote).HasMaxLength(400);
+        });
+
+        // Created by AccountBootstrap (the table was added after the other account tables existed).
+        modelBuilder.Entity<LedgerEntry>(entity =>
+        {
+            entity.ToTable("LedgerEntries");
+            entity.HasKey(entry => entry.Id);
+            entity.HasIndex(entry => new { entry.IdempotencyKey, entry.Leg }).IsUnique();
+            entity.HasIndex(entry => entry.AccountId);
+            entity.Property(entry => entry.JournalId).HasMaxLength(80).IsRequired();
+            entity.Property(entry => entry.IdempotencyKey).HasMaxLength(160).IsRequired();
+            entity.Property(entry => entry.LedgerAccount).HasMaxLength(40).IsRequired();
+            entity.Property(entry => entry.Purpose).HasMaxLength(20).IsRequired();
+            entity.Property(entry => entry.Debit).HasPrecision(18, 2);
+            entity.Property(entry => entry.Credit).HasPrecision(18, 2);
+            entity.Property(entry => entry.BalanceAfter).HasPrecision(18, 2);
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>

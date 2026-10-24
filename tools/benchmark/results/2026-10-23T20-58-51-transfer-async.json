@@ -1,0 +1,169 @@
+{
+  "startedAt": "2026-10-23T20:58:51.513Z",
+  "gateway": "http://localhost:5000",
+  "scenario": "transfer",
+  "duration": 20,
+  "concurrency": 6,
+  "commitMode": "async",
+  "drill": "none",
+  "drillRegion": null,
+  "requests": 1025,
+  "succeeded": 1024,
+  "failed": 1,
+  "throughputPerSecond": 51.2,
+  "latencyMs": {
+    "p50": 101.4,
+    "p95": 226.9,
+    "p99": 319.2,
+    "max": 3599.9
+  },
+  "byOperation": [
+    {
+      "op": "transfer-cross",
+      "requests": 898,
+      "ok": 897,
+      "p50": 101.3,
+      "p95": 225.1,
+      "p99": 318.5
+    },
+    {
+      "op": "transfer-local",
+      "requests": 127,
+      "ok": 127,
+      "p50": 101.8,
+      "p95": 255.7,
+      "p99": 370.4
+    }
+  ],
+  "errors": [
+    {
+      "error": "500 server_error: An unexpected error occurred.",
+      "count": 1
+    }
+  ],
+  "transfersAcceptedAsPending": 0,
+  "unavailableWindowSeconds": {
+    "from": 2,
+    "to": 2,
+    "secondsWithErrors": 1
+  },
+  "drillEvents": [],
+  "ledger": {
+    "before": {
+      "balanced": true,
+      "deposits": 70000449,
+      "postings": 5117
+    },
+    "after": {
+      "balanced": true,
+      "deposits": 70000449,
+      "postings": 7165,
+      "transfersInFlight": -208,
+      "mismatchedAccounts": 0,
+      "unbalancedPostings": 0
+    },
+    "moneyConserved": true
+  },
+  "timeline": [
+    {
+      "second": 0,
+      "ok": 78,
+      "failed": 0
+    },
+    {
+      "second": 1,
+      "ok": 44,
+      "failed": 0
+    },
+    {
+      "second": 2,
+      "ok": 75,
+      "failed": 1
+    },
+    {
+      "second": 3,
+      "ok": 49,
+      "failed": 0
+    },
+    {
+      "second": 4,
+      "ok": 42,
+      "failed": 0
+    },
+    {
+      "second": 5,
+      "ok": 56,
+      "failed": 0
+    },
+    {
+      "second": 6,
+      "ok": 59,
+      "failed": 0
+    },
+    {
+      "second": 7,
+      "ok": 63,
+      "failed": 0
+    },
+    {
+      "second": 8,
+      "ok": 43,
+      "failed": 0
+    },
+    {
+      "second": 9,
+      "ok": 61,
+      "failed": 0
+    },
+    {
+      "second": 10,
+      "ok": 49,
+      "failed": 0
+    },
+    {
+      "second": 11,
+      "ok": 69,
+      "failed": 0
+    },
+    {
+      "second": 12,
+      "ok": 47,
+      "failed": 0
+    },
+    {
+      "second": 13,
+      "ok": 34,
+      "failed": 0
+    },
+    {
+      "second": 14,
+      "ok": 42,
+      "failed": 0
+    },
+    {
+      "second": 15,
+      "ok": 46,
+      "failed": 0
+    },
+    {
+      "second": 16,
+      "ok": 45,
+      "failed": 0
+    },
+    {
+      "second": 17,
+      "ok": 46,
+      "failed": 0
+    },
+    {
+      "second": 18,
+      "ok": 29,
+      "failed": 0
+    },
+    {
+      "second": 19,
+      "ok": 41,
+      "failed": 0
+    }
+  ]
+}

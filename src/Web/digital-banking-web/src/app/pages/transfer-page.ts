@@ -55,7 +55,13 @@ import { AppIcon } from '../ui/icon';
         <label>Beneficiary account<input name="destinationAccountNumber" [(ngModel)]="destinationAccountNumber" required /></label>
         <label>Amount (PKR)<input name="amount" type="number" min="1" [(ngModel)]="amount" required /></label>
         <label>Purpose<input name="description" [(ngModel)]="description" /></label>
-        <button type="submit">Confirm transfer</button>
+        <button type="submit" [disabled]="sending()">
+          @if (sending()) {
+            <span class="inline-loader light"><app-icon name="spinner" /> Sending money…</span>
+          } @else {
+            Confirm transfer
+          }
+        </button>
       </form>
       }
     </section>
@@ -89,6 +95,8 @@ export class TransferPage implements OnInit {
   success = signal('');
   notice = signal<{ title: string; down: boolean; canQueue?: boolean; lines: string[] } | null>(null);
   queueing = signal(false);
+  // While a transfer is on its way: the button shows a loader and cannot be pressed twice.
+  sending = signal(false);
   loading = signal(true);
   private loadStartedAt = Date.now();
 
@@ -159,15 +167,19 @@ export class TransferPage implements OnInit {
   }
 
   submit() {
+    if (this.sending()) return;
     this.error.set('');
     this.success.set('');
+    this.sending.set(true);
     this.bankingService.transfer(this.sourceAccountId, this.destinationAccountNumber, this.amount, this.description).subscribe({
       next: (transaction) => {
+        this.sending.set(false);
         // Pending = a banking service was down; the server kept the transfer and will finish it on its own.
         this.showReceipt(transaction.amount, transaction.referenceNumber, transaction.createdAtUtc, transaction.status === 'Pending');
         this.bankingService.getAccounts().subscribe((accounts) => this.accounts.set(accounts));
       },
       error: (error) => {
+        this.sending.set(false);
         if (error instanceof HttpErrorResponse && [502, 503, 504].includes(error.status)) {
           this.notice.set({
             title: 'Service under maintenance',

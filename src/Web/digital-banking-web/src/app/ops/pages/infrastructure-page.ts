@@ -1,7 +1,7 @@
-import { Component, OnDestroy, computed, inject } from '@angular/core';
+import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { OpsSparkline } from '../ops-charts';
 import { PROVINCE_COLORS, clock, compact, duration, grouped } from '../ops-format';
-import { ClusterView, DbNodeView, PodView, ServicePods } from '../ops.models';
+import { ClusterView, DbNodeView, LedgerCheck, PodView, ServicePods } from '../ops.models';
 import { OpsService } from '../ops.service';
 
 @Component({
@@ -14,35 +14,28 @@ import { OpsService } from '../ops.service';
           <p class="ops-eyebrow">Live topology</p>
           <h1>Platform architecture</h1>
         </div>
-        <p class="ops-head-note">Stateless services scale horizontally behind the gateway's load balancer. Each region owns a primary + replica SQL Server pair in separate zones with automatic failover.</p>
       </header>
 
       @if (o(); as o) {
-        <section class="kpi-row five">
+        <section class="kpi-row">
           <article class="kpi">
-            <span class="kpi-label">Pods serving</span>
+            <span class="kpi-label">Services running</span>
             <strong>{{ podsRunning() }} / {{ podsTotal() }}</strong>
-            <span class="kpi-status" [attr.data-level]="podsRunning() === podsTotal() ? 'good' : 'warning'"><i></i>{{ podsRunning() === podsTotal() ? 'All pods healthy' : (podsTotal() - podsRunning()) + ' not serving' }}</span>
+            <span class="kpi-status" [attr.data-level]="podsRunning() === podsTotal() ? 'good' : 'warning'"><i></i>{{ podsRunning() === podsTotal() ? 'All running' : (podsTotal() - podsRunning()) + ' stopped' }}</span>
           </article>
           <article class="kpi">
-            <span class="kpi-label">Database nodes online</span>
+            <span class="kpi-label">Databases on</span>
             <strong>{{ nodesOnline() }} / {{ nodesTotal() }}</strong>
-            <span class="kpi-status" [attr.data-level]="nodesOnline() === nodesTotal() ? 'good' : 'critical'"><i></i>{{ nodesOnline() === nodesTotal() ? 'Full redundancy' : 'Redundancy lost' }}</span>
+            <span class="kpi-status" [attr.data-level]="nodesOnline() === nodesTotal() ? 'good' : 'critical'"><i></i>{{ nodesOnline() === nodesTotal() ? 'All on' : (nodesTotal() - nodesOnline()) + ' off' }}</span>
           </article>
           <article class="kpi">
-            <span class="kpi-label">Regions writable</span>
+            <span class="kpi-label">Provinces working</span>
             <strong>{{ regionsWritable() }} / {{ o.clusters.length }}</strong>
-            <span class="kpi-sub">{{ degradedCount() }} degraded</span>
           </article>
           <article class="kpi">
-            <span class="kpi-label">Failovers</span>
+            <span class="kpi-label">Switched to backup</span>
             <strong>{{ totalFailovers() }}</strong>
-            <span class="kpi-sub">{{ grouped(lostRows()) }} rows lost (RPO)</span>
-          </article>
-          <article class="kpi">
-            <span class="kpi-label">Replication lag</span>
-            <strong>{{ grouped(maxLag()) }} rows</strong>
-            <span class="kpi-sub">worst region</span>
+            <span class="kpi-sub">{{ lostRows() === 0 ? 'No data lost' : grouped(lostRows()) + ' rows lost' }}</span>
           </article>
         </section>
 
@@ -147,9 +140,7 @@ import { OpsService } from '../ops.service';
           <div class="panel-head">
             <div>
               <h2>Compute · horizontal scaling</h2>
-              <p>Each pod is a separate process on its own port. The gateway balances across healthy pods (power of two choices) and drops dead ones within ~2 s.</p>
             </div>
-            <span class="panel-meta">Vertical capacity: {{ o.host.cores }} cores on {{ o.host.machine }}</span>
           </div>
 
           <div class="svc-list">
@@ -192,10 +183,8 @@ import { OpsService } from '../ops.service';
                         <p class="pod-reason">{{ pod.lastReason || 'Waiting for the process to listen…' }}</p>
                       }
                       <div class="pod-actions">
-                        <button type="button" class="ops-btn small danger" (click)="ops.crashPod(pod.id)" [disabled]="pod.state !== 'Running'">Kill</button>
-                        <button type="button" class="ops-btn small" (click)="ops.restartPod(pod.id)">Restart</button>
-                        <button type="button" class="ops-btn small" (click)="ops.drainPod(pod.id, !pod.drained)">{{ pod.drained ? 'Uncordon' : 'Cordon' }}</button>
-                      </div>
+                        <button type="button" class="ops-btn small danger" title="Stop this copy suddenly, like a crash" (click)="ops.crashPod(pod.id)" [disabled]="pod.state !== 'Running'">Stop</button>
+                        <button type="button" class="ops-btn small" title="Turn this copy off and on again" (click)="ops.restartPod(pod.id)">Restart</button>                      </div>
                     </div>
                   } @empty {
                     <p class="muted">Scaled to zero. The gateway answers 503 for this service.</p>
@@ -204,22 +193,18 @@ import { OpsService } from '../ops.service';
               </article>
             }
           </div>
-
-          <div class="fixed-row">
-            <span class="muted small">Not scaled (stateful or control plane):</span>
-            @for (service of fixedServices(); track service.service) {
-              @for (pod of service.pods; track pod.id) {
-                <span class="fixed-pod" [attr.data-state]="podTone(pod)"><i></i>{{ service.service }} :{{ pod.port }}</span>
-              }
-            }
-          </div>
         </section>
 
         <section class="panel">
           <div class="panel-head">
             <div>
-              <h2>Data tier · regional clusters</h2>
-              <p>Writes go to the primary; reads prefer an in-sync replica. Take a node offline to watch automatic failover, then bring it back to watch it resync.</p>
+              <h2>Data tier · regional clusters</h2>            </div>
+            <div class="data-tier-actions">
+              <label class="inline-toggle" title="On: a money movement is confirmed only after the standby has it, so a failover loses nothing. Off: faster, but the last changes can be lost.">
+                <button type="button" class="toggle" [class.on]="o.synchronousCommit" (click)="ops.setSynchronousCommit(!o.synchronousCommit)" [attr.aria-pressed]="o.synchronousCommit"><i></i></button>
+                Synchronous commit
+              </label>
+              <button type="button" class="ops-btn small" title="Check that every rupee in the bank adds up" (click)="verifyLedger()" [disabled]="checkingLedger()">{{ checkingLedger() ? 'Checking…' : 'Check accounts' }}</button>
             </div>
           </div>
           <div class="cluster-grid">
@@ -228,7 +213,7 @@ import { OpsService } from '../ops.service';
                 <div class="cluster-head">
                   <span class="key" [style.background]="color(cluster.province)"></span>
                   <strong>{{ cluster.province }}</strong>
-                  <span class="cluster-state" [attr.data-state]="cluster.state">{{ cluster.state }}</span>
+                  <span class="cluster-state" [attr.data-state]="cluster.state">{{ cluster.waitingForLease ? 'fencing' : cluster.state }}</span>
                   <span class="muted small cluster-customers">{{ compact(cluster.customers, 2) }} customers</span>
                 </div>
 
@@ -242,28 +227,29 @@ import { OpsService } from '../ops.service';
                     }
                     <div class="db-node" [attr.data-status]="node.status" [class.primary]="node.role === 'primary'">
                       <div class="db-node-head">
-                        <span class="role">{{ node.role }}</span>
+                        <span class="role">{{ node.role === 'primary' ? 'master' : 'slave' }}</span>
                         <span class="db-status" [attr.data-status]="node.status">{{ node.needsResync ? 'needs resync' : node.status }}</span>
                       </div>
                       <strong>{{ node.name }}</strong>
                       <span class="muted small">{{ node.zone }} · {{ node.database }}</span>
+                      <span class="lease-badge" [attr.data-lease]="lease(node)">{{ leaseLabel(node) }}</span>
                       <ops-sparkline [values]="latency(node)" [color]="node.status === 'online' ? 'var(--series-1)' : 'var(--critical)'" [height]="24" />
                       <dl>
                         <div><dt>Ping</dt><dd>{{ node.status === 'online' ? node.latencyMs + ' ms' : '—' }}</dd></div>
                         <div><dt>Customers</dt><dd>{{ compact(node.customerRows) }}</dd></div>
-                        <div><dt>Txns</dt><dd>{{ compact(node.transactionRows) }}</dd></div>
                         <div><dt>Size</dt><dd>{{ compact(node.sizeMb) }} MB</dd></div>
                       </dl>
                       <div class="node-actions">
                         @if (node.status === 'down') {
-                          <button type="button" class="ops-btn small primary" (click)="ops.nodeOnline(node.name)">Bring online</button>
+                          <button type="button" class="ops-btn small primary" (click)="ops.nodeOnline(node.name)">Start</button>
                         } @else {
-                          <button type="button" class="ops-btn small danger" (click)="ops.nodeOffline(node.name)">Take offline</button>
+                          <button type="button" class="ops-btn small danger" title="Turn this database off; if it is the master, the slave takes over" (click)="ops.nodeOffline(node.name)">Stop</button>
                         }
-                        @if (node.status === 'maintenance') {
-                          <button type="button" class="ops-btn small" (click)="ops.nodeMaintenance(node.name, false)">End maintenance</button>
-                        } @else if (node.status === 'online') {
-                          <button type="button" class="ops-btn small" (click)="ops.nodeMaintenance(node.name, true)">Maintenance</button>
+                        <button type="button" class="ops-btn small" title="Turn this database off and on again" (click)="ops.restartNode(node.name)">Restart</button>
+                        @if (node.partitioned) {
+                          <button type="button" class="ops-btn small primary" (click)="ops.nodePartition(node.name, false)">Join network</button>
+                        } @else {
+                          <button type="button" class="ops-btn small" title="Cut this database off: it stops saving, and the other one becomes master. Shows two masters never happen." (click)="ops.nodePartition(node.name, true)">Cut network</button>
                         }
                       </div>
                     </div>
@@ -283,15 +269,20 @@ import { OpsService } from '../ops.service';
                   <button type="button" class="ops-btn small" (click)="ops.switchover(cluster.province)" [disabled]="cluster.state !== 'healthy'">Planned switchover</button>
                   <button type="button" class="ops-btn small danger" (click)="ops.forceFailover(cluster.province)">Force failover</button>
                 </div>
-                <p class="cluster-stats">
-                  {{ cluster.failovers }} failover{{ cluster.failovers === 1 ? '' : 's' }}
-                  @if (cluster.lastFailoverUtc) { · last {{ clock(cluster.lastFailoverUtc) }} }
-                  · {{ grouped(cluster.lostRows) }} rows lost (RPO)
-                  · {{ cluster.replicatedPerSecond }} rows/s shipped
-                </p>
               </article>
             }
           </div>
+
+          @if (ledger(); as l) {
+            <div class="ledger-check">
+              <p class="ledger-verdict">
+                <span class="cluster-state" [attr.data-state]="l.balanced ? 'healthy' : 'down'">{{ l.balanced ? 'Accounts balanced' : 'Accounts NOT balanced' }}</span>
+                <span>Money in {{ money(l.credits) }} = money out {{ money(l.debits) }}</span>
+                <span class="muted">{{ l.mismatchedAccounts }} of {{ grouped(l.accounts) }} accounts wrong · checked {{ clock(l.checkedAtUtc) }}</span>
+              </p>
+            </div>
+          }
+
         </section>
       } @else {
         <div class="panel loading-panel">Connecting to the operations API…</div>
@@ -359,6 +350,39 @@ export class InfrastructurePage implements OnDestroy {
 
   latency(node: DbNodeView) {
     return node.latencySeries.map((value) => Math.max(0, value));
+  }
+
+  lease(node: DbNodeView) {
+    if (node.partitioned) return 'partitioned';
+    if (node.role === 'replica') return 'follower';
+    return node.holdsLease ? 'held' : 'fenced';
+  }
+
+  leaseLabel(node: DbNodeView) {
+    switch (this.lease(node)) {
+      case 'partitioned': return 'network cut';
+      case 'follower': return 'keeps a copy';
+      case 'held': return 'saving data';
+      default: return 'stopped saving';
+    }
+  }
+
+  readonly ledger = signal<LedgerCheck | null>(null);
+  readonly checkingLedger = signal(false);
+
+  verifyLedger() {
+    this.checkingLedger.set(true);
+    this.ops.verifyLedger().subscribe({
+      next: (result) => {
+        this.ledger.set(result);
+        this.checkingLedger.set(false);
+      },
+      error: () => this.checkingLedger.set(false)
+    });
+  }
+
+  money(value: number) {
+    return `PKR ${grouped(Math.round(value))}`;
   }
 
   ngOnDestroy() {

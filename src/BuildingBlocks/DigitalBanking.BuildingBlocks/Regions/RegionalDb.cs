@@ -24,19 +24,41 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         region = BankRegions.Normalize(region);
         if (!contexts.TryGetValue(region, out var context))
         {
-            var contextOptions = new DbContextOptionsBuilder<TContext>()
-                .UseSqlServer(options.RegionConnectionString(region))
-                .Options;
-            context = (TContext)Activator.CreateInstance(typeof(TContext), contextOptions)!;
+            // Resolved per request, so a failover moves new requests to the promoted standby.
+            context = Create(options.RegionConnectionString(region));
             contexts[region] = context;
         }
 
         return context;
     }
 
+    // One specific node (e.g. DigitalBanking_Sindh_B), not cached; the caller disposes it. Used for schema setup.
+    public TContext ForDatabase(string database) => Create(options.ConnectionStringFor(database));
+
+    private static TContext Create(string connectionString)
+    {
+        var contextOptions = new DbContextOptionsBuilder<TContext>()
+            .UseSqlServer(connectionString)
+            .ReplaceService<Microsoft.EntityFrameworkCore.Infrastructure.IModelCustomizer, FencedTablesModelCustomizer>()
+            .Options;
+        return (TContext)Activator.CreateInstance(typeof(TContext), contextOptions)!;
+    }
+
     public void Pin(string region)
     {
         PinnedRegion = BankRegions.Normalize(region);
+    }
+
+    // Looks in one known province (e.g. from the global account index) and pins it when the row is there.
+    public async Task<T?> FindInAsync<T>(string region, Func<TContext, Task<T?>> query) where T : class
+    {
+        var found = await query(For(region));
+        if (found is not null)
+        {
+            Pin(region);
+        }
+
+        return found;
     }
 
     // The user's own province, pinned for the rest of this request.
@@ -80,15 +102,40 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         return false;
     }
 
+    // A province that is down right now (both nodes offline, or mid-failover) is left out, so lists that span
+    // the bank keep showing the other provinces instead of failing as a whole.
     public async Task<List<T>> AllAsync<T>(Func<TContext, Task<List<T>>> query)
     {
         var rows = new List<T>();
+        var unavailable = 0;
         foreach (var region in BankRegions.All)
         {
-            rows.AddRange(await query(For(region)));
+            try
+            {
+                rows.AddRange(await query(For(region)));
+            }
+            catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
+            {
+                unavailable++;
+                await DropAsync(region);
+            }
+        }
+
+        if (unavailable == BankRegions.All.Count)
+        {
+            throw new Exceptions.ServiceUnavailableException("No province database is reachable right now. Please retry in a few seconds.");
         }
 
         return rows;
+    }
+
+    // A context whose connection failed is not reused for the rest of the request.
+    private async Task DropAsync(string region)
+    {
+        if (contexts.Remove(region, out var context))
+        {
+            await context.DisposeAsync();
+        }
     }
 
     // Saves every province database touched in this request.

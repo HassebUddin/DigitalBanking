@@ -1,0 +1,398 @@
+{
+  "startedAt": "2026-10-23T21:39:50.402Z",
+  "gateway": "http://localhost:5000",
+  "scenario": "transfer",
+  "duration": 60,
+  "concurrency": 6,
+  "commitMode": "sync",
+  "drill": "partition",
+  "drillRegion": "sindh",
+  "requests": 210,
+  "succeeded": 196,
+  "failed": 14,
+  "throughputPerSecond": 3.3,
+  "latencyMs": {
+    "p50": 804.7,
+    "p95": 3803.2,
+    "p99": 23130.9,
+    "max": 23340.7
+  },
+  "byOperation": [
+    {
+      "op": "transfer-cross",
+      "requests": 178,
+      "ok": 165,
+      "p50": 842.2,
+      "p95": 3803.2,
+      "p99": 22920.9
+    },
+    {
+      "op": "transfer-local",
+      "requests": 32,
+      "ok": 31,
+      "p50": 779.2,
+      "p95": 1849.6,
+      "p99": 23340.7
+    }
+  ],
+  "errors": [
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_Sindh_B did not confirm within 3s). Please retry.",
+      "count": 4
+    },
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_Sindh_A did not confirm within 3s). Please retry.",
+      "count": 2
+    },
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_Punjab_A did not confirm within 3s). Please retry.",
+      "count": 4
+    },
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_KP_B did not confirm within 3s). Please retry.",
+      "count": 3
+    },
+    {
+      "error": "503 service_unavailable: The change could not be confirmed on the standby yet (standby DigitalBanking_Balochistan_B did not confirm within 3s). Please retry.",
+      "count": 1
+    }
+  ],
+  "transfersAcceptedAsPending": 0,
+  "unavailableWindowSeconds": {
+    "from": 24,
+    "to": 58,
+    "secondsWithErrors": 7
+  },
+  "drillEvents": [
+    {
+      "t": 20,
+      "event": "sindh-a PARTITIONED from coordinator"
+    },
+    {
+      "t": 29.5,
+      "event": "sindh-b promoted to primary"
+    },
+    {
+      "t": 40,
+      "event": "sindh-a partition healed"
+    }
+  ],
+  "ledger": {
+    "before": {
+      "balanced": true,
+      "deposits": 70000449,
+      "postings": 8447
+    },
+    "after": {
+      "balanced": true,
+      "deposits": 70000449,
+      "postings": 8839,
+      "transfersInFlight": -208,
+      "mismatchedAccounts": 0,
+      "unbalancedPostings": 0
+    },
+    "moneyConserved": true
+  },
+  "timeline": [
+    {
+      "second": 0,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 1,
+      "ok": 5,
+      "failed": 0
+    },
+    {
+      "second": 2,
+      "ok": 4,
+      "failed": 0
+    },
+    {
+      "second": 3,
+      "ok": 9,
+      "failed": 0
+    },
+    {
+      "second": 4,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 5,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 6,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 7,
+      "ok": 6,
+      "failed": 0
+    },
+    {
+      "second": 8,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 9,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 10,
+      "ok": 5,
+      "failed": 0
+    },
+    {
+      "second": 11,
+      "ok": 5,
+      "failed": 0
+    },
+    {
+      "second": 12,
+      "ok": 6,
+      "failed": 0
+    },
+    {
+      "second": 13,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 14,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 15,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 16,
+      "ok": 6,
+      "failed": 0
+    },
+    {
+      "second": 17,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 18,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 19,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 20,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 21,
+      "ok": 3,
+      "failed": 0
+    },
+    {
+      "second": 22,
+      "ok": 1,
+      "failed": 0
+    },
+    {
+      "second": 23,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 24,
+      "ok": 1,
+      "failed": 2
+    },
+    {
+      "second": 25,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 26,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 27,
+      "ok": 0,
+      "failed": 1
+    },
+    {
+      "second": 28,
+      "ok": 1,
+      "failed": 0
+    },
+    {
+      "second": 29,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 30,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 31,
+      "ok": 0,
+      "failed": 1
+    },
+    {
+      "second": 32,
+      "ok": 1,
+      "failed": 0
+    },
+    {
+      "second": 33,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 34,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 35,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 36,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 37,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 38,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 39,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 40,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 41,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 42,
+      "ok": 5,
+      "failed": 0
+    },
+    {
+      "second": 43,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 44,
+      "ok": 6,
+      "failed": 0
+    },
+    {
+      "second": 45,
+      "ok": 9,
+      "failed": 0
+    },
+    {
+      "second": 46,
+      "ok": 9,
+      "failed": 0
+    },
+    {
+      "second": 47,
+      "ok": 5,
+      "failed": 0
+    },
+    {
+      "second": 48,
+      "ok": 7,
+      "failed": 0
+    },
+    {
+      "second": 49,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 50,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 51,
+      "ok": 2,
+      "failed": 1
+    },
+    {
+      "second": 52,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 53,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 54,
+      "ok": 0,
+      "failed": 1
+    },
+    {
+      "second": 55,
+      "ok": 0,
+      "failed": 2
+    },
+    {
+      "second": 56,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 57,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 58,
+      "ok": 0,
+      "failed": 3
+    },
+    {
+      "second": 59,
+      "ok": 0,
+      "failed": 0
+    }
+  ]
+}

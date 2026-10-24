@@ -12,6 +12,8 @@ public interface ICacheService
     Task RemoveAsync(string key, CancellationToken cancellationToken = default);
 }
 
+// Best effort: the database is the source of truth, so when Redis is down a read is a miss and a write is
+// skipped (without waiting for a connect timeout) instead of failing the request that already did its work.
 public sealed class RedisCacheService(IConnectionMultiplexer multiplexer) : ICacheService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -21,24 +23,53 @@ public sealed class RedisCacheService(IConnectionMultiplexer multiplexer) : ICac
 
     public async Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
     {
-        var value = await multiplexer.GetDatabase().StringGetAsync(key);
-        if (value.IsNullOrEmpty)
+        if (!multiplexer.IsConnected)
         {
             return default;
         }
 
-        return JsonSerializer.Deserialize<T>(value!, JsonOptions);
+        try
+        {
+            var value = await multiplexer.GetDatabase().StringGetAsync(key);
+            return value.IsNullOrEmpty ? default : JsonSerializer.Deserialize<T>(value!, JsonOptions);
+        }
+        catch (RedisException)
+        {
+            return default;
+        }
     }
 
     public async Task SetAsync<T>(string key, T value, TimeSpan timeToLive, CancellationToken cancellationToken = default)
     {
-        var payload = JsonSerializer.Serialize(value, JsonOptions);
-        await multiplexer.GetDatabase().StringSetAsync(key, payload, timeToLive);
+        if (!multiplexer.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            var payload = JsonSerializer.Serialize(value, JsonOptions);
+            await multiplexer.GetDatabase().StringSetAsync(key, payload, timeToLive);
+        }
+        catch (RedisException)
+        {
+        }
     }
 
-    public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
+    public async Task RemoveAsync(string key, CancellationToken cancellationToken = default)
     {
-        return multiplexer.GetDatabase().KeyDeleteAsync(key);
+        if (!multiplexer.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            await multiplexer.GetDatabase().KeyDeleteAsync(key);
+        }
+        catch (RedisException)
+        {
+        }
     }
 }
 

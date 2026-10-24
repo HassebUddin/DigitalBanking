@@ -27,9 +27,12 @@ import { AppIcon } from '../ui/icon';
             <p>Wallets</p>
             <strong>My accounts</strong>
           </div>
-          <button class="round-btn" type="button" (click)="startRequest()" aria-label="Request account">
-            <app-icon name="plus" />
-          </button>
+          <!-- One account per customer: the request button goes away once they have one. -->
+          @if (accounts().length === 0) {
+            <button class="round-btn" type="button" (click)="startRequest()" aria-label="Request account">
+              <app-icon name="plus" />
+            </button>
+          }
         </div>
       </header>
 
@@ -119,10 +122,6 @@ import { AppIcon } from '../ui/icon';
       @if (step() === 1) {
         <form class="modal-form" (ngSubmit)="step.set(2)">
           <p class="hint">Bank reviews every request. The account goes live only after admin approval.</p>
-          <div class="chip-row wrap">
-            <button type="button" class="filter-chip" [class.active]="accountType === 'Savings'" (click)="accountType = 'Savings'">Savings</button>
-            <button type="button" class="filter-chip" [class.active]="accountType === 'Current'" (click)="accountType = 'Current'">Current</button>
-          </div>
           <label>Purpose<input name="purpose" [(ngModel)]="purpose" placeholder="Salary, savings, business" /></label>
           <button type="submit">Next: documents</button>
         </form>
@@ -212,7 +211,13 @@ import { AppIcon } from '../ui/icon';
         <label>Amount (PKR)
           <input name="amount" type="number" min="1" [(ngModel)]="amount" required />
         </label>
-        <button type="submit">{{ moneyMode() === 'deposit' ? 'Deposit' : 'Withdraw' }}</button>
+        <button type="submit" [disabled]="moneyBusy()">
+          @if (moneyBusy()) {
+            <span class="inline-loader light"><app-icon name="spinner" /> {{ moneyMode() === 'deposit' ? 'Adding money…' : 'Withdrawing…' }}</span>
+          } @else {
+            {{ moneyMode() === 'deposit' ? 'Deposit' : 'Withdraw' }}
+          }
+        </button>
       </form>
     </app-modal>
   `
@@ -226,6 +231,8 @@ export class AccountsPage implements OnInit {
   requestOpen = signal(false);
   step = signal(1);
   submitting = signal(false);
+  // While a deposit or withdrawal is on its way: loader on the button, no double submit.
+  moneyBusy = signal(false);
   accountType = 'Savings';
   purpose = 'Personal banking';
   termsAccepted = false;
@@ -412,21 +419,26 @@ export class AccountsPage implements OnInit {
 
   submitMoney() {
     const account = this.selected();
-    if (!account) {
+    if (!account || this.moneyBusy()) {
       return;
     }
     this.modalError.set('');
+    this.moneyBusy.set(true);
     const request = this.moneyMode() === 'deposit'
       ? this.bankingService.deposit(account.id, this.amount, 'Cash deposit')
       : this.bankingService.withdraw(account.id, this.amount, 'Cash withdrawal');
 
     request.subscribe({
       next: () => {
+        this.moneyBusy.set(false);
         this.selected.set(null);
         this.message.set(this.moneyMode() === 'deposit' ? 'Amount added.' : 'Amount withdrawn.');
         this.reload();
       },
-      error: (error) => this.modalError.set(readErrorMessage(error, 'Transaction failed.'))
+      error: (error) => {
+        this.moneyBusy.set(false);
+        this.modalError.set(readErrorMessage(error, 'Transaction failed.'));
+      }
     });
   }
 

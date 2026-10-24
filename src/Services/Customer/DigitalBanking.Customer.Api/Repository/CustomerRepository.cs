@@ -30,9 +30,16 @@ public sealed class CustomerRepository(RegionalDb<CustomerDbContext> db) : ICust
     }
 
     // CNIC must be unique across the whole bank, not just one province.
+    // Compared on digits only: "42101-1234567-1" and "4210112345671" are the same CNIC.
     public Task<bool> CustomerExistsByNationalIdAsync(string nationalId, CancellationToken cancellationToken)
     {
-        return db.AnyAsync(context => context.Customers.AnyAsync(customer => customer.NationalId == nationalId, cancellationToken));
+        var digits = new string(nationalId.Where(char.IsDigit).ToArray());
+        if (digits.Length == 0)
+        {
+            return db.AnyAsync(context => context.Customers.AnyAsync(customer => customer.NationalId == nationalId, cancellationToken));
+        }
+
+        return db.AnyAsync(context => context.Customers.AnyAsync(customer => customer.NationalId.Replace("-", "") == digits, cancellationToken));
     }
 
     public async Task AddCustomerAsync(CustomerProfile customer, CancellationToken cancellationToken)

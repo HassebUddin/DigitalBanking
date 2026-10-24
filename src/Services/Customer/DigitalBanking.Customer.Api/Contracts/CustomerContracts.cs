@@ -20,3 +20,14 @@ public sealed class CustomerResponse
     public string Region { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
 }
+
+public sealed class RegisteredCustomerRequest
+{
+    public Guid UserId { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string NationalId { get; set; } = string.Empty;
+    public string PhoneNumber { get; set; } = string.Empty;
+    public string Address { get; set; } = string.Empty;
+    public string Region { get; set; } = string.Empty;
+}

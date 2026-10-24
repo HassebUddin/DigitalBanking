@@ -10,6 +10,32 @@ services:
     volumes:
       - sqlserver-data:/var/opt/mssql
 
+  # The two zones of every province: DigitalBanking_*_A databases live in zone A, *_B in zone B.
+  # `docker stop digitalbanking-sql-zone-a` takes zone A down; the coordinator promotes zone B.
+  sql-zone-a:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: digitalbanking-sql-zone-a
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "1536"
+    ports:
+      - "14331:1433"
+    volumes:
+      - sql-zone-a-data:/var/opt/mssql
+
+  sql-zone-b:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: digitalbanking-sql-zone-b
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "1536"
+    ports:
+      - "14332:1433"
+    volumes:
+      - sql-zone-b-data:/var/opt/mssql
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: digitalbanking-rabbitmq
@@ -28,3 +54,5 @@ services:
 
 volumes:
   sqlserver-data:
+  sql-zone-a-data:
+  sql-zone-b-data:

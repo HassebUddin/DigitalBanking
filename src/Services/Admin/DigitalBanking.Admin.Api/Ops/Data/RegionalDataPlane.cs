@@ -3,6 +3,7 @@ using System.Data;
 using System.Diagnostics;
 using DigitalBanking.Admin.Api.Infrastructure;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Regions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,6 +30,18 @@ public sealed class DbNode
     public long TransactionRows { get; set; }
     public double SizeMb { get; set; }
     public Queue<double> LatencySeries { get; } = new();
+
+    // Network partition drill: the coordinator cannot reach this node, while the services still can.
+    public bool Partitioned { get; set; }
+
+    // When the coordinator last extended this node's primary lease (it stays writable until + LeaseTtl).
+    public DateTime? LeaseRenewedUtc { get; set; }
+
+    public bool HoldsLease => Role == "primary" && LeaseRenewedUtc is { } renewed && DateTime.UtcNow < renewed + BankReplicator.LeaseTtl;
+
+    // For a primary that lost its role: the last change-tracking version of it that reached the new primary.
+    // Its changes after this version are the writes the new primary never received.
+    public long? ShippedUpToVersion { get; set; }
 }
 
 public sealed class RegionCluster
@@ -48,9 +61,28 @@ public sealed class RegionCluster
     public int Failovers { get; set; }
     public DateTime? LastFailoverUtc { get; set; }
     public long LostRows { get; set; }
+
+    // Leader term: raised on every promotion and stamped into the primary's lease, so a node (or a stale
+    // coordinator) from an older term can never take the lease back.
+    public long Epoch { get; set; } = 1;
+
+    // While true the primary's lease is not renewed (planned switchover: the old primary must fence itself).
+    public volatile bool LeaseSuspended;
+    public bool WaitingForLease { get; set; }
+
+    // Real banking tables (account, txn, customer, notify, audit), shipped by change tracking.
+    public long BankRowsShipped { get; set; }
+    public DateTime? BankLastShippedUtc { get; set; }
+    public long BankVersion { get; set; }
+    public int BankRebuilds { get; set; }
+    public long DivergedRows { get; set; }
     public ConcurrentDictionary<string, long> CityCounts { get; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, int[]> BranchesByCity { get; } = new(StringComparer.OrdinalIgnoreCase);
+    // Roles and leases. Never held for long: lease renewal must not wait behind a slow replication pass.
     public SemaphoreSlim Gate { get; } = new(1, 1);
+
+    // Data shipping (simulated tables and banking tables) and fencing setup.
+    public SemaphoreSlim ShipGate { get; } = new(1, 1);
 
     public DbNode? Primary => Nodes.FirstOrDefault(node => node.Role == "primary");
     public DbNode? Replica => Nodes.FirstOrDefault(node => node.Role == "replica");
@@ -65,12 +97,14 @@ public sealed class RegionCluster
 
 public sealed record NodeView(
     string Name, string Database, string Zone, string Role, string Status, bool NeedsResync, double LatencyMs, double[] LatencySeries,
-    long CustomerRows, long TransactionRows, double SizeMb, string? LastError, DateTime LastCheckUtc);
+    long CustomerRows, long TransactionRows, double SizeMb, string? LastError, DateTime LastCheckUtc,
+    bool Partitioned, bool HoldsLease, DateTime? LeaseRenewedUtc);
 
 public sealed record ClusterView(
     string Province, string Code, string State, bool AutoFailover, bool ReplicationPaused, long CustomerLag, long TransactionLag,
     DateTime? LastReplicatedUtc, double ReplicatedPerSecond, int Failovers, DateTime? LastFailoverUtc, long LostRows, long Customers,
-    IReadOnlyList<NodeView> Nodes);
+    IReadOnlyList<NodeView> Nodes,
+    long Epoch, bool WaitingForLease, long BankRowsShipped, DateTime? BankLastShippedUtc, long BankVersion, int BankRebuilds, long DivergedRows);
 
 /// <summary>
 /// Four regional SQL Server clusters, each a primary and a replica in separate zones. Handles schema,
@@ -80,13 +114,19 @@ public sealed class RegionalDataPlane(
     IConfiguration configuration,
     IServiceScopeFactory scopeFactory,
     OpsEventLog events,
+    BankReplicator bank,
+    RegionalDatabaseOptions regionalOptions,
     ILogger<RegionalDataPlane> logger) : BackgroundService
 {
     private static readonly string[] BranchAreas =
         ["Main", "Saddar", "Cantt", "City", "Model Town", "Satellite Town", "University Road", "GT Road", "Industrial Area", "Airport Road", "Civil Lines", "Bazaar"];
 
     private readonly Dictionary<string, RegionCluster> clusters = new(StringComparer.OrdinalIgnoreCase);
-    private string server = "(localdb)\\MSSQLLocalDB";
+
+    // The synthetic load (dbo.Customers / dbo.Transactions, up to tens of millions of rows) stays on the node it
+    // was written to: copying it to the standby would double the disk for data that is not banking data.
+    // The real banking tables are always replicated. Set RegionalDatabases:ReplicateSimulatedData=true to copy it too.
+    private readonly bool replicateSimulatedData = configuration.GetValue("RegionalDatabases:ReplicateSimulatedData", false);
 
     public IReadOnlyList<RegionCluster> Clusters => clusters.Values.ToList();
 
@@ -106,7 +146,6 @@ public sealed class RegionalDataPlane(
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        server = configuration["RegionalDatabases:Server"] ?? server;
         foreach (var province in PakistanGeo.Provinces)
         {
             var slug = province.Code switch { "PB" => "punjab", "SD" => "sindh", "KP" => "kp", _ => "balochistan" };
@@ -123,16 +162,22 @@ public sealed class RegionalDataPlane(
             };
         }
 
-        await using (var master = new SqlConnection(BuildConnectionString("master", 15)))
+        foreach (var node in clusters.Values.SelectMany(cluster => cluster.Nodes))
         {
-            await master.OpenAsync(cancellationToken);
-            foreach (var node in clusters.Values.SelectMany(cluster => cluster.Nodes))
+            // Bring every node back online on boot so a node left offline by a drill can be rebuilt.
+            // A zone whose server is down (e.g. its Docker container is stopped) starts as "down" instead.
+            try
             {
-                // Bring every node back online on boot so a node left offline by a drill can be rebuilt.
+                await using var master = new SqlConnection(regionalOptions.MasterConnectionStringFor(node.Database));
+                await master.OpenAsync(cancellationToken);
                 await ExecuteAsync(master,
                     $"IF DB_ID(N'{node.Database}') IS NULL CREATE DATABASE [{node.Database}]; " +
                     $"ELSE IF DATABASEPROPERTYEX(N'{node.Database}', 'Status') <> 'ONLINE' ALTER DATABASE [{node.Database}] SET ONLINE;",
                     cancellationToken, 120);
+            }
+            catch (SqlException exception)
+            {
+                logger.LogWarning("Server of {Node} is not reachable at startup: {Message}", node.Name, exception.Message);
             }
         }
 
@@ -142,6 +187,8 @@ public sealed class RegionalDataPlane(
             var dbContext = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
             states = await dbContext.ClusterStates.AsNoTracking().ToDictionaryAsync(state => state.Province, cancellationToken);
         }
+
+        var topology = await LoadTopologyAsync(cancellationToken);
 
         foreach (var cluster in clusters.Values)
         {
@@ -156,6 +203,7 @@ public sealed class RegionalDataPlane(
                         await connection.OpenAsync(cancellationToken);
                         await ExecuteAsync(connection, SchemaSql, cancellationToken, 60);
                         await SeedBranchesAsync(connection, cluster, cancellationToken);
+                        await bank.PrepareAsync(connection, node.Name, cancellationToken);
                         break;
                     }
                     catch (SqlException exception) when (attempt < 3)
@@ -173,10 +221,20 @@ public sealed class RegionalDataPlane(
                 }
             }
 
-            var primaryName = states.TryGetValue(cluster.Province.Name, out var state) ? state.PrimaryNode : cluster.Nodes[0].Name;
+            // The services follow ops.RegionPrimaries. Before it existed they always wrote to node A, so that is
+            // where the banking data is: start there rather than on a standby that never received it.
+            var primaryName = cluster.Nodes[0].Name;
+            if (topology.TryGetValue(cluster.Slug, out var known))
+            {
+                primaryName = known.Node;
+                cluster.Epoch = known.Epoch;
+            }
+
             foreach (var node in cluster.Nodes)
             {
                 node.Role = node.Name == primaryName ? "primary" : "replica";
+                // A previous coordinator may have granted a lease moments ago; treat it as live for one TTL.
+                node.LeaseRenewedUtc = node.Role == "primary" ? DateTime.UtcNow : null;
             }
 
             if (cluster.Primary is null)
@@ -184,12 +242,8 @@ public sealed class RegionalDataPlane(
                 cluster.Nodes[0].Role = "primary";
             }
 
-            cluster.AutoFailover = state?.AutoFailover ?? true;
-            if (cluster.Primary is { Status: "down" } && cluster.Replica is { Status: "online" } standby)
-            {
-                cluster.Primary!.Role = "replica";
-                standby.Role = "primary";
-            }
+            cluster.AutoFailover = states.TryGetValue(cluster.Province.Name, out var state) ? state.AutoFailover : true;
+            await SaveStateAsync(cluster, cancellationToken);
 
             foreach (var node in cluster.Nodes.Where(node => node.Status == "online"))
             {
@@ -199,6 +253,12 @@ public sealed class RegionalDataPlane(
             }
 
             await RefreshCityCountsAsync(cluster, cancellationToken);
+        }
+
+        // Last, after the slow startup work, so the leases are fresh when the health loop takes over renewing them.
+        foreach (var cluster in clusters.Values)
+        {
+            await RenewLeaseAsync(cluster, cancellationToken);
         }
     }
 
@@ -210,8 +270,9 @@ public sealed class RegionalDataPlane(
         ConnectionString = BuildConnectionString(database, 3)
     };
 
+    // Same server and credentials the banking services use for this database (see RegionalDatabaseOptions).
     private string BuildConnectionString(string database, int connectTimeout) =>
-        $"Data Source={server};Initial Catalog={database};Integrated Security=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout={connectTimeout};Max Pool Size=200;";
+        $"{regionalOptions.ConnectionStringFor(database)}Connect Timeout={connectTimeout};Max Pool Size=200;";
 
     private const string SchemaSql = """
         IF OBJECT_ID(N'dbo.Branches', N'U') IS NULL
@@ -341,11 +402,14 @@ public sealed class RegionalDataPlane(
         }
     }
 
-    /// <summary>Reads go to the replica when it is in sync, offloading the primary (read scaling).</summary>
+    /// <summary>
+    /// Reads of the simulated customers go to the replica when it holds a copy and is in sync (read scaling).
+    /// When that data is not replicated (the default), only the primary has it, so reads go there.
+    /// </summary>
     public DbNode ReadNode(string province)
     {
         var cluster = Cluster(province);
-        if (cluster.Replica is { Status: "online", NeedsResync: false } replica && cluster.CustomerLag < 5_000)
+        if (replicateSimulatedData && cluster.Replica is { Status: "online", NeedsResync: false } replica && cluster.CustomerLag < 5_000)
         {
             return replica;
         }
@@ -387,7 +451,7 @@ public sealed class RegionalDataPlane(
         var node = Node(nodeName);
         var role = node.Role;
         events.Critical("database", node.Name, $"{node.Name} ({role}) taken offline by admin. Simulated zone outage.");
-        await using var master = new SqlConnection(BuildConnectionString("master", 15));
+        await using var master = new SqlConnection(regionalOptions.MasterConnectionStringFor(node.Database));
         await master.OpenAsync(cancellationToken);
         await ExecuteAsync(master, $"ALTER DATABASE [{node.Database}] SET OFFLINE WITH ROLLBACK IMMEDIATE", cancellationToken, 60);
         SqlConnection.ClearAllPools();
@@ -396,7 +460,7 @@ public sealed class RegionalDataPlane(
     public async Task BringOnlineAsync(string nodeName, CancellationToken cancellationToken)
     {
         var node = Node(nodeName);
-        await using var master = new SqlConnection(BuildConnectionString("master", 15));
+        await using var master = new SqlConnection(regionalOptions.MasterConnectionStringFor(node.Database));
         await master.OpenAsync(cancellationToken);
         await ExecuteAsync(master, $"ALTER DATABASE [{node.Database}] SET ONLINE", cancellationToken, 120);
         if (node.Status == "maintenance")
@@ -411,6 +475,7 @@ public sealed class RegionalDataPlane(
     {
         var cluster = Cluster(province);
         await cluster.Gate.WaitAsync(cancellationToken);
+        await cluster.ShipGate.WaitAsync(cancellationToken);
         try
         {
             if (cluster.Primary is not { Status: "online" } primary || cluster.Replica is not { Status: "online", NeedsResync: false } replica)
@@ -420,8 +485,11 @@ public sealed class RegionalDataPlane(
 
             var watch = Stopwatch.StartNew();
             cluster.WritesFrozen = true;
+            // Fence the old primary first: from here on it refuses banking writes, so the final ship is complete.
+            cluster.LeaseSuspended = true;
+            await DemoteAsync(primary, cluster.Epoch, cancellationToken);
             await Task.Delay(400, cancellationToken);
-            for (var attempt = 0; attempt < 60; attempt++)
+            for (var attempt = 0; replicateSimulatedData && attempt < 60; attempt++)
             {
                 await ReplicateAsync(cluster, primary, replica, cancellationToken);
                 if (cluster.CustomerLag == 0 && cluster.TransactionLag == 0)
@@ -430,14 +498,54 @@ public sealed class RegionalDataPlane(
                 }
             }
 
+            for (var attempt = 0; attempt < 10 && (await ShipBankAsync(cluster, primary, replica, cancellationToken)).RowsApplied > 0; attempt++)
+            {
+            }
+
             await PromoteAsync(cluster, replica, planned: true, cancellationToken);
             events.Success("database", cluster.Province.Name,
-                $"Planned switchover ({reason}): {replica.Name} is now primary. Writes paused {watch.ElapsedMilliseconds} ms, zero data loss.");
+                $"Planned switchover ({reason}): {replica.Name} is now primary (epoch {cluster.Epoch}). Writes paused {watch.ElapsedMilliseconds} ms, zero data loss.");
         }
         finally
         {
             cluster.WritesFrozen = false;
+            cluster.LeaseSuspended = false;
+            cluster.ShipGate.Release();
             cluster.Gate.Release();
+        }
+    }
+
+    public bool SynchronousCommit => regionalOptions.Topology.SynchronousCommit;
+
+    // Synchronous commit: services acknowledge a money movement only once the standby holds it (RPO 0).
+    // Asynchronous: faster, but a failover can lose what the standby had not received yet.
+    public async Task SetSynchronousCommitAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        await using var connection = new SqlConnection(regionalOptions.CentralConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand("UPDATE ops.ReplicationSettings SET SynchronousCommit = @on, UpdatedAtUtc = SYSUTCDATETIME() WHERE Id = 1", connection);
+        command.Parameters.AddWithValue("@on", enabled);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        regionalOptions.Topology.RefreshNow();
+        events.Info("database", "replication", enabled
+            ? "Synchronous commit on: money movements wait for the standby (no data loss on failover)."
+            : "Asynchronous commit: faster, but a failover can lose the last changes the standby had not received.");
+    }
+
+    // Network partition drill: the coordinator loses sight of the node while services can still reach it.
+    // If it is the primary, its lease runs out, it fences itself, and only then is the standby promoted.
+    public void SetPartition(string nodeName, bool enabled)
+    {
+        var node = Node(nodeName);
+        node.Partitioned = enabled;
+        if (enabled)
+        {
+            events.Critical("database", node.Name,
+                $"Network partition: the coordinator can no longer reach {node.Name} ({node.Role}). Services still can.");
+        }
+        else
+        {
+            events.Info("database", node.Name, $"Partition healed: {node.Name} is reachable again.");
         }
     }
 
@@ -445,6 +553,7 @@ public sealed class RegionalDataPlane(
     {
         var cluster = Cluster(province);
         await cluster.Gate.WaitAsync(cancellationToken);
+        await cluster.ShipGate.WaitAsync(cancellationToken);
         try
         {
             if (cluster.Replica is not { Status: "online", NeedsResync: false } replica)
@@ -452,10 +561,29 @@ public sealed class RegionalDataPlane(
                 throw new BusinessRuleException("The replica is not healthy enough to promote.");
             }
 
-            await PromoteAsync(cluster, replica, planned: false, cancellationToken);
+            var lossless = false;
+            if (cluster.Primary is { } old && old != replica)
+            {
+                cluster.LeaseSuspended = true;
+                if (old.Status == "online" && !old.Partitioned && await DemoteAsync(old, cluster.Epoch, cancellationToken))
+                {
+                    // Fenced at once: ship what it has so the forced failover loses nothing.
+                    await ShipBankAsync(cluster, old, replica, cancellationToken);
+                    lossless = true;
+                }
+                else if (old.LeaseRenewedUtc is { } renewed && renewed + BankReplicator.LeaseTtl > DateTime.UtcNow)
+                {
+                    // Unreachable: it may still be writable until its lease runs out.
+                    await Task.Delay(renewed + BankReplicator.LeaseTtl - DateTime.UtcNow, cancellationToken);
+                }
+            }
+
+            await PromoteAsync(cluster, replica, planned: lossless, cancellationToken);
         }
         finally
         {
+            cluster.LeaseSuspended = false;
+            cluster.ShipGate.Release();
             cluster.Gate.Release();
         }
     }
@@ -515,13 +643,18 @@ public sealed class RegionalDataPlane(
     /// <summary>Brings every node online, ends maintenance and resumes replication with auto-failover on.</summary>
     public async Task ResetAsync(CancellationToken cancellationToken)
     {
-        await using (var master = new SqlConnection(BuildConnectionString("master", 15)))
+        foreach (var node in clusters.Values.SelectMany(cluster => cluster.Nodes))
         {
-            await master.OpenAsync(cancellationToken);
-            foreach (var node in clusters.Values.SelectMany(cluster => cluster.Nodes))
+            try
             {
+                await using var master = new SqlConnection(regionalOptions.MasterConnectionStringFor(node.Database));
+                await master.OpenAsync(cancellationToken);
                 await ExecuteAsync(master,
                     $"IF DATABASEPROPERTYEX(N'{node.Database}', 'Status') <> 'ONLINE' ALTER DATABASE [{node.Database}] SET ONLINE;", cancellationToken, 120);
+            }
+            catch (SqlException exception)
+            {
+                logger.LogWarning("Could not bring {Node} online: {Message}", node.Name, exception.Message);
             }
         }
 
@@ -531,6 +664,11 @@ public sealed class RegionalDataPlane(
             foreach (var node in cluster.Nodes.Where(node => node.Status == "maintenance"))
             {
                 node.Status = "online";
+            }
+
+            foreach (var node in cluster.Nodes)
+            {
+                node.Partitioned = false;
             }
 
             if (!cluster.AutoFailover)
@@ -546,12 +684,12 @@ public sealed class RegionalDataPlane(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var replication = Task.Run(() => ReplicationLoopAsync(stoppingToken), stoppingToken);
+        var health = Task.Run(() => HealthLoopAsync(stoppingToken), stoppingToken);
         var tick = 0;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await Task.WhenAll(clusters.Values.Select(cluster => CheckClusterAsync(cluster, stoppingToken)));
                 if (tick % 3 == 0)
                 {
                     await Task.WhenAll(clusters.Values.SelectMany(cluster => cluster.Nodes).Where(node => node.Status != "down").Select(node => SampleAsync(node, stoppingToken)));
@@ -583,15 +721,39 @@ public sealed class RegionalDataPlane(
             await Task.Delay(1_000, stoppingToken).ContinueWith(_ => { }, CancellationToken.None);
         }
 
-        await replication;
+        await Task.WhenAll(replication, health);
+    }
+
+    // Health checks, lease renewal and failover: its own loop, so slow statistics never delay a lease renewal.
+    private async Task HealthLoopAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.WhenAll(clusters.Values.Select(cluster => CheckClusterAsync(cluster, stoppingToken)));
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Cluster health loop failed.");
+            }
+
+            await Task.Delay(1_000, stoppingToken).ContinueWith(_ => { }, CancellationToken.None);
+        }
     }
 
     private async Task CheckClusterAsync(RegionCluster cluster, CancellationToken cancellationToken)
     {
-        var results = await Task.WhenAll(cluster.Nodes.Select(node => PingAsync(node, cancellationToken)));
+        // Under the gate: a probe renews the primary's lease, and must never race a promotion that just
+        // handed the lease (with a newer epoch) to the other node.
         await cluster.Gate.WaitAsync(cancellationToken);
         try
         {
+            var results = await Task.WhenAll(cluster.Nodes.Select(node => ProbeAsync(cluster, node, cancellationToken)));
             for (var index = 0; index < cluster.Nodes.Length; index++)
             {
                 var node = cluster.Nodes[index];
@@ -627,21 +789,30 @@ public sealed class RegionalDataPlane(
                 {
                     node.Status = "down";
                     events.Critical("database", node.Name, $"{node.Name} ({node.Role}) failed {node.Failures} health checks: {Shorten(error)}");
-                    if (node.Role == "primary")
+                    if (node.Role == "primary" && !(cluster.AutoFailover && cluster.Replica is { Status: "online", NeedsResync: false }))
                     {
-                        var candidate = cluster.Replica;
-                        if (cluster.AutoFailover && candidate is { Status: "online", NeedsResync: false })
-                        {
-                            await PromoteAsync(cluster, candidate, planned: false, cancellationToken);
-                        }
-                        else
-                        {
-                            events.Critical("database", cluster.Province.Name,
-                                cluster.AutoFailover
-                                    ? $"{cluster.Province.Name} has no healthy replica to promote. Regional writes are failing."
-                                    : $"{cluster.Province.Name} primary is down and automatic failover is off. Promote the replica manually.");
-                        }
+                        events.Critical("database", cluster.Province.Name,
+                            cluster.AutoFailover
+                                ? $"{cluster.Province.Name} has no healthy replica to promote. Regional writes are failing."
+                                : $"{cluster.Province.Name} primary is down and automatic failover is off. Promote the replica manually.");
                     }
+                }
+            }
+
+            // Leader election: the standby takes over only once the lost primary's lease has expired, so the old
+            // primary (which may still be reachable by services, e.g. in a partition) has already fenced itself.
+            if (cluster.AutoFailover && cluster.Primary is { Status: "down" } lost && cluster.Replica is { Status: "online", NeedsResync: false } candidate)
+            {
+                var safeAt = (lost.LeaseRenewedUtc ?? DateTime.MinValue) + BankReplicator.LeaseTtl;
+                if (DateTime.UtcNow >= safeAt)
+                {
+                    await PromoteAsync(cluster, candidate, planned: false, cancellationToken);
+                }
+                else if (!cluster.WaitingForLease)
+                {
+                    cluster.WaitingForLease = true;
+                    events.Warning("database", cluster.Province.Name,
+                        $"Primary {lost.Name} lost. Waiting {(safeAt - DateTime.UtcNow).TotalSeconds:0.0}s for its lease to expire (fencing) before promoting {candidate.Name}.");
                 }
             }
         }
@@ -656,10 +827,40 @@ public sealed class RegionalDataPlane(
         var watch = Stopwatch.StartNew();
         var old = cluster.Primary;
         var atRisk = cluster.CustomerLag + cluster.TransactionLag;
+
+        // New term. The new primary must hold the lease before any service is pointed at it.
+        var epoch = cluster.Epoch + 1;
+        await using (var connection = new SqlConnection(target.ConnectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            if (!await bank.RenewPrimaryAsync(connection, target.Name, epoch, cancellationToken))
+            {
+                throw new BusinessRuleException($"{target.Name} has already seen a newer epoch; refusing to promote it with epoch {epoch}.");
+            }
+
+            if (old is not null && old != target
+                && await bank.ReplicationStateAsync(target.ConnectionString, cancellationToken) is { } shipped
+                && string.Equals(shipped.SourceDatabase, old.Database, StringComparison.OrdinalIgnoreCase))
+            {
+                old.ShippedUpToVersion = shipped.LastVersion;
+            }
+
+            await bank.ForgetReplicationStateAsync(connection, cancellationToken);
+        }
+
+        target.LeaseRenewedUtc = DateTime.UtcNow;
+        cluster.Epoch = epoch;
+        cluster.WaitingForLease = false;
         target.Role = "primary";
         if (old is not null && old != target)
         {
             old.Role = "replica";
+            old.LeaseRenewedUtc = null;
+            if (old.Status == "online" && !old.Partitioned)
+            {
+                await DemoteAsync(old, epoch, cancellationToken);
+            }
+
             if (!planned)
             {
                 // Anything the old primary holds above these ids never reached the new primary.
@@ -676,8 +877,8 @@ public sealed class RegionalDataPlane(
         if (!planned)
         {
             events.Critical("database", cluster.Province.Name,
-                $"Automatic failover: {target.Name} ({target.Zone}) promoted to primary in {watch.ElapsedMilliseconds} ms. " +
-                $"{atRisk:N0} rows were not yet replicated (RPO).");
+                $"Failover: {target.Name} ({target.Zone}) promoted to primary, epoch {epoch}, in {watch.ElapsedMilliseconds} ms. " +
+                $"Services now route {cluster.Province.Name} banking traffic to {target.Database}. {atRisk:N0} simulated rows were not yet replicated (RPO).");
         }
     }
 
@@ -685,15 +886,22 @@ public sealed class RegionalDataPlane(
     {
         try
         {
-            await using var connection = new SqlConnection(node.ConnectionString);
-            await connection.OpenAsync(cancellationToken);
-            await using var command = new SqlCommand(
-                "DELETE FROM dbo.Customers WHERE Id > @c; DECLARE @a int = @@ROWCOUNT; DELETE FROM dbo.Transactions WHERE Id > @t; SELECT @a + @@ROWCOUNT;",
-                connection) { CommandTimeout = 300 };
-            command.Parameters.AddWithValue("@c", node.CustomerWatermark);
-            command.Parameters.AddWithValue("@t", node.TransactionWatermark);
-            var discarded = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
+            // Simulated rows are only trimmed when they are being replicated; otherwise each node keeps its own.
+            var discarded = 0L;
+            if (replicateSimulatedData)
+            {
+                await using var connection = new SqlConnection(node.ConnectionString);
+                await connection.OpenAsync(cancellationToken);
+                await using var command = new SqlCommand(
+                    "DELETE FROM dbo.Customers WHERE Id > @c; DECLARE @a int = @@ROWCOUNT; DELETE FROM dbo.Transactions WHERE Id > @t; SELECT @a + @@ROWCOUNT;",
+                    connection) { CommandTimeout = 300 };
+                command.Parameters.AddWithValue("@c", node.CustomerWatermark);
+                command.Parameters.AddWithValue("@t", node.TransactionWatermark);
+                discarded = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
+            }
+
             cluster.LostRows += discarded;
+            await QuarantineDivergedAsync(cluster, node, cancellationToken);
             node.NeedsResync = false;
             events.Warning("database", node.Name,
                 $"{node.Name} rejoined as replica. Discarded {discarded:N0} rows that never reached the new primary, then resumed replication.");
@@ -705,54 +913,98 @@ public sealed class RegionalDataPlane(
         }
     }
 
-    private async Task ReplicationLoopAsync(CancellationToken stoppingToken)
+    // One loop per province, so a slow province never delays another's shipping.
+    private Task ReplicationLoopAsync(CancellationToken stoppingToken) =>
+        Task.WhenAll(clusters.Values.Select(cluster => Task.Run(() => ReplicateClusterLoopAsync(cluster, stoppingToken), stoppingToken)));
+
+    // Banking changes ship every ~100 ms: services wait for the standby to confirm a money movement before
+    // acknowledging it (synchronous commit), so this interval is part of their latency. Simulated rows ship every second.
+    private async Task ReplicateClusterLoopAsync(RegionCluster cluster, CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        for (var pass = 0; !stoppingToken.IsCancellationRequested; pass++)
         {
-            await Task.WhenAll(clusters.Values.Select(async cluster =>
+            var prepare = pass % 50 == 0;
+            var simulated = pass % 10 == 0;
+            await ReplicatePassAsync(cluster, prepare, simulated, stoppingToken);
+            await Task.Delay(100, stoppingToken).ContinueWith(_ => { }, CancellationToken.None);
+        }
+    }
+
+    private async Task ReplicatePassAsync(RegionCluster cluster, bool prepare, bool simulated, CancellationToken stoppingToken)
+    {
+        try
+        {
+            // Fencing triggers and change tracking for tables the services created since the last pass.
+            if (prepare && await cluster.ShipGate.WaitAsync(0, stoppingToken))
             {
                 try
                 {
-                    if (cluster.WritesFrozen || cluster.Primary is not { Status: "online" } primary)
+                    await PrepareNodesAsync(cluster, stoppingToken);
+                }
+                finally
+                {
+                    cluster.ShipGate.Release();
+                }
+            }
+
+            if (cluster.WritesFrozen || cluster.Primary is not { Status: "online" } primary)
+            {
+                return;
+            }
+
+            var replica = cluster.Replica;
+            if (replica is not { Status: "online", NeedsResync: false })
+            {
+                return;
+            }
+
+            if (cluster.ReplicationPaused)
+            {
+                if (!simulated || !replicateSimulatedData)
+                {
+                    return;
+                }
+
+                var (primaryCustomers, primaryTransactions) = await MaxIdsAsync(primary, stoppingToken);
+                var (replicaCustomers, replicaTransactions) = await MaxIdsAsync(replica, stoppingToken);
+                cluster.CustomerLag = Math.Max(0, primaryCustomers - replicaCustomers);
+                cluster.TransactionLag = Math.Max(0, primaryTransactions - replicaTransactions);
+                cluster.ReplicatedPerSecond = 0;
+                return;
+            }
+
+            if (await cluster.ShipGate.WaitAsync(0, stoppingToken))
+            {
+                try
+                {
+                    // Roles may have changed while waiting; only ship from the current primary.
+                    if (cluster.Primary != primary || cluster.Replica != replica)
                     {
                         return;
                     }
 
-                    var replica = cluster.Replica;
-                    if (replica is not { Status: "online", NeedsResync: false })
-                    {
-                        return;
-                    }
-
-                    if (cluster.ReplicationPaused)
-                    {
-                        var (primaryCustomers, primaryTransactions) = await MaxIdsAsync(primary, stoppingToken);
-                        var (replicaCustomers, replicaTransactions) = await MaxIdsAsync(replica, stoppingToken);
-                        cluster.CustomerLag = Math.Max(0, primaryCustomers - replicaCustomers);
-                        cluster.TransactionLag = Math.Max(0, primaryTransactions - replicaTransactions);
-                        cluster.ReplicatedPerSecond = 0;
-                        return;
-                    }
-
-                    if (await cluster.Gate.WaitAsync(0, stoppingToken))
+                    await ShipBankAsync(cluster, primary, replica, stoppingToken);
+                    if (simulated && replicateSimulatedData)
                     {
                         try
                         {
                             await ReplicateAsync(cluster, primary, replica, stoppingToken);
                         }
-                        finally
+                        catch (Exception exception) when (exception is not OperationCanceledException)
                         {
-                            cluster.Gate.Release();
+                            logger.LogWarning("Simulated-data replication for {Province} failed: {Message}", cluster.Province.Name, exception.Message);
                         }
                     }
                 }
-                catch (Exception exception) when (exception is not OperationCanceledException)
+                finally
                 {
-                    logger.LogWarning("Replication for {Province} failed: {Message}", cluster.Province.Name, exception.Message);
+                    cluster.ShipGate.Release();
                 }
-            }));
-
-            await Task.Delay(1_000, stoppingToken).ContinueWith(_ => { }, CancellationToken.None);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning("Replication for {Province} failed: {Message}", cluster.Province.Name, exception.Message);
         }
     }
 
@@ -794,8 +1046,14 @@ public sealed class RegionalDataPlane(
         }
     }
 
-    private static async Task<(bool Ok, double LatencyMs, string? Error)> PingAsync(DbNode node, CancellationToken cancellationToken)
+    // Health check, and lease keeping: the primary's lease is extended, the standby's is kept revoked.
+    private async Task<(bool Ok, double LatencyMs, string? Error)> ProbeAsync(RegionCluster cluster, DbNode node, CancellationToken cancellationToken)
     {
+        if (node.Partitioned)
+        {
+            return (false, 0, "Network partition (drill): the coordinator cannot reach this node.");
+        }
+
         var watch = Stopwatch.StartNew();
         await using var connection = new SqlConnection(node.ConnectionString);
         try
@@ -803,7 +1061,33 @@ public sealed class RegionalDataPlane(
             await connection.OpenAsync(cancellationToken);
             await using var command = new SqlCommand("SELECT 1", connection) { CommandTimeout = 2 };
             await command.ExecuteScalarAsync(cancellationToken);
-            return (true, Math.Round(watch.Elapsed.TotalMilliseconds, 1), null);
+            var latency = Math.Round(watch.Elapsed.TotalMilliseconds, 1);
+
+            if (node.Role == "primary")
+            {
+                if (!cluster.LeaseSuspended && node.Status != "down")
+                {
+                    if (await bank.RenewPrimaryAsync(connection, node.Name, cluster.Epoch, cancellationToken))
+                    {
+                        if (node.LeaseRenewedUtc is { } previous && DateTime.UtcNow - previous > BankReplicator.LeaseTtl / 2)
+                        {
+                            logger.LogWarning("Lease of {Node} renewed late: {Seconds:0.0}s since the previous renewal.", node.Name, (DateTime.UtcNow - previous).TotalSeconds);
+                        }
+
+                        node.LeaseRenewedUtc = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        events.Critical("database", node.Name, $"{node.Name} refused lease epoch {cluster.Epoch}: it has seen a newer epoch.");
+                    }
+                }
+            }
+            else
+            {
+                await bank.DemoteAsync(connection, node.Name, cluster.Epoch, cancellationToken);
+            }
+
+            return (true, latency, null);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -896,6 +1180,184 @@ public sealed class RegionalDataPlane(
         state.AutoFailover = cluster.AutoFailover;
         state.UpdatedAtUtc = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // What every banking service routes by (see BuildingBlocks RegionTopology).
+        var primary = cluster.Primary ?? cluster.Nodes[0];
+        await using var connection = new SqlConnection(regionalOptions.CentralConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand("""
+            MERGE ops.RegionPrimaries AS target
+            USING (SELECT @region AS Region) AS source ON target.Region = source.Region
+            WHEN MATCHED THEN UPDATE SET PrimaryNode = @node, PrimaryDatabase = @database, Epoch = @epoch, UpdatedAtUtc = SYSUTCDATETIME()
+            WHEN NOT MATCHED THEN INSERT (Region, PrimaryNode, PrimaryDatabase, Epoch, UpdatedAtUtc) VALUES (@region, @node, @database, @epoch, SYSUTCDATETIME());
+            """, connection);
+        command.Parameters.AddWithValue("@region", cluster.Slug);
+        command.Parameters.AddWithValue("@node", primary.Name);
+        command.Parameters.AddWithValue("@database", primary.Database);
+        command.Parameters.AddWithValue("@epoch", cluster.Epoch);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task<Dictionary<string, (string Node, long Epoch)>> LoadTopologyAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = new SqlConnection(regionalOptions.CentralConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await ExecuteAsync(connection, """
+            IF SCHEMA_ID(N'ops') IS NULL EXEC(N'CREATE SCHEMA ops');
+            IF OBJECT_ID(N'ops.RegionPrimaries') IS NULL
+                CREATE TABLE ops.RegionPrimaries (
+                    Region nvarchar(32) NOT NULL CONSTRAINT PK_RegionPrimaries PRIMARY KEY,
+                    PrimaryNode nvarchar(64) NOT NULL, PrimaryDatabase nvarchar(128) NOT NULL,
+                    Epoch bigint NOT NULL, UpdatedAtUtc datetime2 NOT NULL);
+            IF OBJECT_ID(N'ops.ReplicationSettings') IS NULL
+            BEGIN
+                CREATE TABLE ops.ReplicationSettings (
+                    Id int NOT NULL CONSTRAINT PK_ReplicationSettings PRIMARY KEY CONSTRAINT CK_ReplicationSettings_Single CHECK (Id = 1),
+                    SynchronousCommit bit NOT NULL, UpdatedAtUtc datetime2 NOT NULL);
+                INSERT ops.ReplicationSettings VALUES (1, 1, SYSUTCDATETIME());
+            END
+            IF OBJECT_ID(N'ops.DivergedRows') IS NULL
+                CREATE TABLE ops.DivergedRows (
+                    Id bigint IDENTITY CONSTRAINT PK_DivergedRows PRIMARY KEY,
+                    Region nvarchar(32) NOT NULL, Node nvarchar(64) NOT NULL, TableName nvarchar(256) NOT NULL,
+                    Operation nvarchar(8) NOT NULL, RowJson nvarchar(max) NULL, DetectedAtUtc datetime2 NOT NULL);
+            """, cancellationToken, 60);
+
+        var topology = new Dictionary<string, (string, long)>(StringComparer.OrdinalIgnoreCase);
+        await using var command = new SqlCommand("SELECT Region, PrimaryNode, Epoch FROM ops.RegionPrimaries", connection);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            topology[reader.GetString(0)] = (reader.GetString(1), reader.GetInt64(2));
+        }
+
+        return topology;
+    }
+
+    private async Task RenewLeaseAsync(RegionCluster cluster, CancellationToken cancellationToken)
+    {
+        if (cluster.Primary is not { } primary)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var connection = new SqlConnection(primary.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            if (await bank.RenewPrimaryAsync(connection, primary.Name, cluster.Epoch, cancellationToken))
+            {
+                primary.LeaseRenewedUtc = DateTime.UtcNow;
+            }
+        }
+        catch (SqlException exception)
+        {
+            logger.LogWarning("Could not grant the lease to {Node}: {Message}", primary.Name, exception.Message);
+        }
+    }
+
+    // Revokes a node's lease at once (best effort: an unreachable node fences itself when its lease expires).
+    private async Task<bool> DemoteAsync(DbNode node, long epoch, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var connection = new SqlConnection(node.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            await bank.DemoteAsync(connection, node.Name, epoch, cancellationToken);
+            node.LeaseRenewedUtc = null;
+            return true;
+        }
+        catch (SqlException exception)
+        {
+            logger.LogWarning("Could not revoke the lease of {Node}: {Message}", node.Name, exception.Message);
+            return false;
+        }
+    }
+
+    private async Task PrepareNodesAsync(RegionCluster cluster, CancellationToken cancellationToken)
+    {
+        foreach (var node in cluster.Nodes.Where(node => node.Status == "online" && !node.Partitioned))
+        {
+            try
+            {
+                await using var connection = new SqlConnection(node.ConnectionString);
+                await connection.OpenAsync(cancellationToken);
+                await bank.PrepareAsync(connection, node.Name, cancellationToken);
+            }
+            catch (SqlException exception)
+            {
+                logger.LogWarning("Fencing setup on {Node} failed: {Message}", node.Name, exception.Message);
+            }
+        }
+    }
+
+    private async Task<ShipResult> ShipBankAsync(RegionCluster cluster, DbNode primary, DbNode replica, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await bank.ShipAsync(primary.ConnectionString, primary.Database, replica.ConnectionString, cancellationToken);
+            cluster.BankRowsShipped += result.RowsApplied;
+            cluster.BankVersion = result.SourceVersion;
+            cluster.BankLastShippedUtc = DateTime.UtcNow;
+            if (result.Rebuilt)
+            {
+                cluster.BankRebuilds++;
+                events.Info("database", replica.Name,
+                    $"{replica.Name} rebuilt from {primary.Name}: {result.RowsApplied:N0} banking rows copied. Now following its changes.");
+            }
+
+            return result;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning("Banking replication {Primary} -> {Replica} failed: {Message}", primary.Name, replica.Name, exception.Message);
+            return new ShipResult(0, false, cluster.BankVersion);
+        }
+    }
+
+    // A former primary rejoining: banking writes it accepted after the last version shipped from it never
+    // reached the new primary. They are kept in ops.DivergedRows for reconciliation, then the node is rebuilt.
+    private async Task QuarantineDivergedAsync(RegionCluster cluster, DbNode node, CancellationToken cancellationToken)
+    {
+        // Whatever happens below, the node follows the new primary from a full copy, never from its own stale watermark.
+        await using (var rejoining = new SqlConnection(node.ConnectionString))
+        {
+            await rejoining.OpenAsync(cancellationToken);
+            await bank.ForgetReplicationStateAsync(rejoining, cancellationToken);
+        }
+
+        if (cluster.Primary is not { } primary || primary == node || node.ShippedUpToVersion is not { } shippedUpTo)
+        {
+            return;
+        }
+
+        node.ShippedUpToVersion = null;
+        var diverged = await bank.UnshippedChangesAsync(node.ConnectionString, shippedUpTo, cancellationToken);
+        if (diverged.Count == 0)
+        {
+            events.Success("database", node.Name, $"{node.Name} rejoined: no banking write was lost (every change had reached {primary.Name}).");
+            return;
+        }
+
+        await using var connection = new SqlConnection(regionalOptions.CentralConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        foreach (var row in diverged)
+        {
+            await using var command = new SqlCommand(
+                "INSERT ops.DivergedRows (Region, Node, TableName, Operation, RowJson, DetectedAtUtc) VALUES (@region, @node, @table, @op, @row, SYSUTCDATETIME())",
+                connection);
+            command.Parameters.AddWithValue("@region", cluster.Slug);
+            command.Parameters.AddWithValue("@node", node.Name);
+            command.Parameters.AddWithValue("@table", row.Table);
+            command.Parameters.AddWithValue("@op", row.Operation);
+            command.Parameters.AddWithValue("@row", (object?)row.RowJson ?? DBNull.Value);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        cluster.DivergedRows += diverged.Count;
+        events.Critical("database", node.Name,
+            $"{node.Name} rejoined with {diverged.Count:N0} banking changes that never reached {primary.Name}. " +
+            "Kept in ops.DivergedRows for reconciliation; the node is rebuilt from the primary.");
     }
 
     private static async Task<(long Customers, long Transactions)> MaxIdsAsync(DbNode node, CancellationToken cancellationToken)
@@ -930,7 +1392,10 @@ public sealed class RegionalDataPlane(
             cluster.LastFailoverUtc, cluster.LostRows, Interlocked.Read(ref cluster.NextCustomerId),
             cluster.Nodes.Select(node => new NodeView(
                 node.Name, node.Database, node.Zone, node.Role, node.Status, node.NeedsResync, node.LatencyMs, node.LatencySeries.ToArray(),
-                node.CustomerRows, node.TransactionRows, node.SizeMb, node.LastError, node.LastCheckUtc)).ToList())).ToList();
+                node.CustomerRows, node.TransactionRows, node.SizeMb, node.LastError, node.LastCheckUtc,
+                node.Partitioned, node.HoldsLease, node.LeaseRenewedUtc)).ToList(),
+            cluster.Epoch, cluster.WaitingForLease, cluster.BankRowsShipped, cluster.BankLastShippedUtc, cluster.BankVersion,
+            cluster.BankRebuilds, cluster.DivergedRows)).ToList();
     }
 
     public IEnumerable<(string Key, string Label, string ConnectionString, string Region, string Role, string Status)> DatabaseCatalog()

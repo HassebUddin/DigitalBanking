@@ -117,17 +117,17 @@ interface HistoryGroup {
             <p class="tx-day">{{ group.label }}</p>
             @for (transaction of group.items; track transaction.id) {
               <article class="tx-row rise">
-                <span class="tx-ico" [class.in]="isIn(transaction.transactionType)" [class.out]="!isIn(transaction.transactionType)">
-                  <app-icon [name]="isIn(transaction.transactionType) ? 'in' : 'out'" />
+                <span class="tx-ico" [class.in]="isIn(transaction)" [class.out]="!isIn(transaction)">
+                  <app-icon [name]="isIn(transaction) ? 'in' : 'out'" />
                 </span>
                 <div>
-                  <strong>{{ typeTitle(transaction.transactionType) }}</strong>
+                  <strong>{{ typeTitle(transaction) }}</strong>
                   <p>{{ transaction.description || transaction.referenceNumber }}</p>
                   <p>{{ clock(transaction.createdAtUtc) }} · {{ transaction.status }}</p>
                 </div>
                 <div class="tx-amount">
-                  <b [class.amount-in]="isIn(transaction.transactionType)" [class.amount-out]="!isIn(transaction.transactionType)">
-                    {{ isIn(transaction.transactionType) ? '+' : '−' }}{{ formatMoney(transaction.amount) }}
+                  <b [class.amount-in]="isIn(transaction)" [class.amount-out]="!isIn(transaction)">
+                    {{ isIn(transaction) ? '+' : '−' }}{{ formatMoney(transaction.amount) }}
                   </b>
                 </div>
               </article>
@@ -166,7 +166,8 @@ export class TransactionsPage implements OnInit, OnDestroy {
     { label: 'All', value: '' },
     { label: 'In', value: 'Deposit' },
     { label: 'Out', value: 'Withdrawal' },
-    { label: 'Transfer', value: 'Transfer' }
+    { label: 'Transfer', value: 'Transfer' },
+    { label: 'Refunds', value: 'Refund' }
   ];
   readonly skeletonItems = [1, 2, 3, 4];
 
@@ -195,7 +196,12 @@ export class TransactionsPage implements OnInit, OnDestroy {
 
     return this.transactions().reduce(
       (totals, transaction) => {
-        if (this.isIn(transaction.transactionType)) {
+        // Only money that really moved: failed, pending and rolled-back (Compensated) transfers are left out,
+        // and so are their refunds (shown under the Refunds tab).
+        if (transaction.status !== 'Completed' || transaction.transactionType === 'Refund') {
+          return totals;
+        }
+        if (this.isIn(transaction)) {
           totals.moneyIn += transaction.amount;
         } else {
           totals.moneyOut += transaction.amount;
@@ -261,14 +267,19 @@ export class TransactionsPage implements OnInit, OnDestroy {
     return 'Your incoming and outgoing activity will show here.';
   }
 
-  isIn(type: string) {
-    return type === 'Deposit';
+  // Money in: a deposit, or a transfer whose receiving account is one of mine (and the sender is not).
+  isIn(transaction: BankTransaction) {
+    if (transaction.transactionType === 'Deposit' || transaction.transactionType === 'Refund') return true;
+    const mine = new Set(this.accounts().map((account) => account.id));
+    return transaction.transactionType === 'Transfer'
+      && !!transaction.counterpartyAccountId && mine.has(transaction.counterpartyAccountId) && !mine.has(transaction.accountId);
   }
 
-  typeTitle(type: string) {
-    if (type === 'Deposit') return 'Money in';
-    if (type === 'Withdrawal') return 'Cash out';
-    return 'Transfer';
+  typeTitle(transaction: BankTransaction) {
+    if (transaction.transactionType === 'Deposit') return 'Money in';
+    if (transaction.transactionType === 'Withdrawal') return 'Cash out';
+    if (transaction.transactionType === 'Refund') return 'Refund (transfer rolled back)';
+    return this.isIn(transaction) ? 'Transfer received' : 'Transfer sent';
   }
 
   clock(value: string) {
@@ -320,7 +331,8 @@ export class TransactionsPage implements OnInit, OnDestroy {
       })
       .subscribe({
         next: (transactions) => {
-          this.endLoad(() => this.transactions.set(transactions));
+          // Refunds have their own tab; the other tabs show the transfer itself (marked Compensated).
+          this.endLoad(() => this.transactions.set(this.transactionType === 'Refund' ? transactions : transactions.filter((item) => item.transactionType !== 'Refund')));
         },
         error: (error) => {
           this.error.set(readErrorMessage(error, 'Unable to load history.'));
@@ -347,7 +359,7 @@ export class TransactionsPage implements OnInit, OnDestroy {
           this.statementLoading.set(false);
           this.endLoad(() => {
             this.statement.set(statement);
-            this.transactions.set(statement.transactions);
+            this.transactions.set(statement.transactions.filter((item) => item.transactionType !== 'Refund'));
           });
         },
         error: (error) => {

@@ -33,6 +33,9 @@ public static class TransactionTypes
     public const string Deposit = "Deposit";
     public const string Withdrawal = "Withdrawal";
     public const string Transfer = "Transfer";
+
+    // Money returned to the sender of a transfer that could not be delivered (rollback).
+    public const string Refund = "Refund";
 }
 
 public static class TransactionStatuses

@@ -16,6 +16,8 @@ builder.Services.AddRegionalDbContext<AccountDbContext>();
 builder.Services.AddRegionalOutboxPublisher<AccountDbContext>();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<LedgerAuditor>();
+builder.Services.AddSingleton<AccountDirectory>();
 builder.Services.AddSingleton<AccountFileStore>();
 builder.Services.Configure<ServiceEndpoints>(builder.Configuration.GetSection(ServiceEndpoints.SectionName));
 builder.Services.AddHttpClient<CustomerLookupClient>((serviceProvider, httpClient) =>
@@ -28,5 +30,6 @@ var app = builder.Build();
 app.UseStaticFiles();
 app.UseBankingServicePipeline();
 await app.EnsureRegionalDatabasesAsync<AccountDbContext>("DigitalBanking_Account");
+await AccountBootstrap.RunAsync(app);
 app.Run();
 

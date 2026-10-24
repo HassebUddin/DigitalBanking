@@ -19,6 +19,8 @@ builder.Services.AddEventHandler<AccountApplicationReopenedNotificationHandler>(
 builder.Services.AddEventHandler<MoneyDepositedNotificationHandler>(nameof(MoneyDepositedEvent));
 builder.Services.AddEventHandler<MoneyWithdrawnNotificationHandler>(nameof(MoneyWithdrawnEvent));
 builder.Services.AddEventHandler<MoneyTransferredNotificationHandler>(nameof(MoneyTransferredEvent));
+builder.Services.AddEventHandler<TransferFailedNotificationHandler>(nameof(TransferFailedEvent));
+builder.Services.AddEventHandler<TransferRefundedNotificationHandler>(nameof(TransferRefundedEvent));
 builder.Services.AddEventHandler<PasswordChangedNotificationHandler>(nameof(PasswordChangedEvent));
 builder.Services.AddEventHandler<PasswordResetNotificationHandler>(nameof(PasswordResetRequestedEvent));
 

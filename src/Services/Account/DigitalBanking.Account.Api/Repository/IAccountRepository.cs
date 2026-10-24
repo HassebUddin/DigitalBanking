@@ -8,8 +8,15 @@ public interface IAccountRepository
     Task<BankAccount?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken);
     Task<BankAccount?> GetAccountByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken);
     Task<IReadOnlyList<BankAccount>> GetAccountsAsync(Guid userId, bool isAdmin, CancellationToken cancellationToken);
-    Task<bool> AccountNumberExistsAsync(string accountNumber, CancellationToken cancellationToken);
+    Task<string> RegionOfUserAsync(Guid userId, CancellationToken cancellationToken);
+    Task<bool> TryReserveAccountNumberAsync(string accountNumber, Guid accountId, string region, CancellationToken cancellationToken);
     Task AddAccountAsync(BankAccount account, CancellationToken cancellationToken);
+
+    Task<AccountLock?> LockAccountAsync(Guid accountId, CancellationToken cancellationToken);
+    Task<bool> LedgerPostingExistsAsync(string idempotencyKey, CancellationToken cancellationToken);
+    Task<bool> PostingAppliedAsync(Guid accountId, string idempotencyKey, CancellationToken cancellationToken);
+    void AddLedgerEntries(params LedgerEntry[] entries);
+    Task WaitForStandbyAsync(CancellationToken cancellationToken);
 
     Task<AccountApplication?> GetAccountApplicationByIdAsync(Guid applicationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<AccountApplication>> GetAccountApplicationsAsync(Guid userId, bool isAdmin, CancellationToken cancellationToken);

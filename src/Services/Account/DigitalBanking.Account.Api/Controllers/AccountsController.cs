@@ -27,6 +27,22 @@ public sealed class AccountsController(
         return Ok(account);
     }
 
+    // An account for any user, funded with an opening deposit (drills, benchmarks, staff tooling).
+    [Authorize(Roles = "Admin")]
+    [HttpPost("admin/open-funded-account")]
+    public async Task<ActionResult<AccountResponse>> OpenFundedAccount(OpenFundedAccountRequest request, CancellationToken cancellationToken)
+    {
+        return Ok(await accountService.OpenFundedAccountAsync(request, cancellationToken));
+    }
+
+    // Double-entry invariants across every province's ledger.
+    [Authorize(Roles = "Admin")]
+    [HttpGet("ledger/verify")]
+    public async Task<IActionResult> VerifyLedger([FromServices] LedgerAuditor auditor, CancellationToken cancellationToken)
+    {
+        return Ok(await auditor.VerifyAsync(cancellationToken));
+    }
+
     [Authorize(Roles = "Customer")]
     [HttpPost("request-account-application")]
     [Consumes("multipart/form-data")]
@@ -112,6 +128,23 @@ public sealed class AccountsController(
     public async Task<ActionResult<AccountResponse>> GetAccountByAccountNumber(string accountNumber, CancellationToken cancellationToken)
     {
         return Ok(await accountService.GetAccountByAccountNumberAsync(accountNumber, cancellationToken));
+    }
+
+    // A customer's account ids, so their history can include deposits made by staff and incoming transfers.
+    [InternalApiKey]
+    [HttpGet("internal/users/{userId:guid}/account-ids")]
+    public async Task<ActionResult<IReadOnlyList<Guid>>> AccountIdsOfUser(Guid userId, CancellationToken cancellationToken)
+    {
+        var accounts = await accountService.GetAccountsAsync(userId, false, cancellationToken);
+        return Ok(accounts.Select(account => account.Id).ToList());
+    }
+
+    [InternalApiKey]
+    [HttpGet("internal/{accountId:guid}/movements/{referenceNumber}")]
+    public async Task<IActionResult> MovementApplied(Guid accountId, string referenceNumber, [FromQuery] string side, CancellationToken cancellationToken)
+    {
+        var applied = await accountService.MovementAppliedAsync(accountId, referenceNumber, string.Equals(side, "debit", StringComparison.OrdinalIgnoreCase), cancellationToken);
+        return Ok(new { applied });
     }
 
     [InternalApiKey]

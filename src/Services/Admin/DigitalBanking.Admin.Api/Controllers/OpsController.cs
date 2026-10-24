@@ -88,6 +88,7 @@ public sealed class OpsController(
             }),
             pods = PodsView(services),
             clusters,
+            synchronousCommit = dataPlane.SynchronousCommit,
             clients,
             endpoints,
             database = databaseSnapshot,
@@ -221,6 +222,21 @@ public sealed class OpsController(
     public async Task<IActionResult> Maintenance(string node, ToggleRequest request, CancellationToken cancellationToken)
     {
         await dataPlane.SetMaintenanceAsync(node, request.Enabled, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPut("db/commit-mode")]
+    public async Task<IActionResult> CommitMode(ToggleRequest request, CancellationToken cancellationToken)
+    {
+        await dataPlane.SetSynchronousCommitAsync(request.Enabled, cancellationToken);
+        return Ok(new { synchronousCommit = request.Enabled });
+    }
+
+    // Network partition drill between the coordinator and one node (services can still reach it).
+    [HttpPost("db/nodes/{node}/partition")]
+    public IActionResult Partition(string node, ToggleRequest request)
+    {
+        dataPlane.SetPartition(node, request.Enabled);
         return NoContent();
     }
 
@@ -388,9 +404,9 @@ public sealed class OpsController(
     public IActionResult CancelBatch(int id) => batches.Cancel(id) ? NoContent() : NotFound();
 
     [HttpGet("customers/search")]
-    public async Task<IActionResult> SearchCustomers(string? q, string? province, string? city, int take = 50, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> SearchCustomers(string? q, string? province, string? city, int take = 50, int page = 0, CancellationToken cancellationToken = default)
     {
-        return Ok(await customerSearch.SearchAsync(q, province, city, take, cancellationToken));
+        return Ok(await customerSearch.SearchAsync(q, province, city, take, page, cancellationToken));
     }
 }
 

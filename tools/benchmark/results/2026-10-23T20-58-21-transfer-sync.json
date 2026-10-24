@@ -1,0 +1,160 @@
+{
+  "startedAt": "2026-10-23T20:58:21.981Z",
+  "gateway": "http://localhost:5000",
+  "scenario": "transfer",
+  "duration": 20,
+  "concurrency": 6,
+  "commitMode": "sync",
+  "drill": "none",
+  "drillRegion": null,
+  "requests": 165,
+  "succeeded": 165,
+  "failed": 0,
+  "throughputPerSecond": 8.3,
+  "latencyMs": {
+    "p50": 686.7,
+    "p95": 993.5,
+    "p99": 2122.9,
+    "max": 2319.9
+  },
+  "byOperation": [
+    {
+      "op": "transfer-cross",
+      "requests": 144,
+      "ok": 144,
+      "p50": 686.7,
+      "p95": 974.1,
+      "p99": 2122.9
+    },
+    {
+      "op": "transfer-local",
+      "requests": 21,
+      "ok": 21,
+      "p50": 713,
+      "p95": 2086.2,
+      "p99": 2114.1
+    }
+  ],
+  "errors": [],
+  "transfersAcceptedAsPending": 0,
+  "unavailableWindowSeconds": null,
+  "drillEvents": [],
+  "ledger": {
+    "before": {
+      "balanced": true,
+      "deposits": 70000449,
+      "postings": 4787
+    },
+    "after": {
+      "balanced": true,
+      "deposits": 70000449,
+      "postings": 5117,
+      "transfersInFlight": -208,
+      "mismatchedAccounts": 0,
+      "unbalancedPostings": 0
+    },
+    "moneyConserved": true
+  },
+  "timeline": [
+    {
+      "second": 0,
+      "ok": 0,
+      "failed": 0
+    },
+    {
+      "second": 1,
+      "ok": 1,
+      "failed": 0
+    },
+    {
+      "second": 2,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 3,
+      "ok": 9,
+      "failed": 0
+    },
+    {
+      "second": 4,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 5,
+      "ok": 10,
+      "failed": 0
+    },
+    {
+      "second": 6,
+      "ok": 9,
+      "failed": 0
+    },
+    {
+      "second": 7,
+      "ok": 10,
+      "failed": 0
+    },
+    {
+      "second": 8,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 9,
+      "ok": 10,
+      "failed": 0
+    },
+    {
+      "second": 10,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 11,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 12,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 13,
+      "ok": 12,
+      "failed": 0
+    },
+    {
+      "second": 14,
+      "ok": 6,
+      "failed": 0
+    },
+    {
+      "second": 15,
+      "ok": 9,
+      "failed": 0
+    },
+    {
+      "second": 16,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 17,
+      "ok": 8,
+      "failed": 0
+    },
+    {
+      "second": 18,
+      "ok": 11,
+      "failed": 0
+    },
+    {
+      "second": 19,
+      "ok": 8,
+      "failed": 0
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, computed, signal } from '@angular/core';
 import { AuthService } from '../core/auth.service';
 import { readErrorMessage } from '../core/http-error';
-import { Observable } from 'rxjs';
+import { Observable, switchMap, timer } from 'rxjs';
 import {
   CustomerBatch,
   DatabaseInfo,
@@ -10,6 +10,7 @@ import {
   TablePage,
   CustomerSearchResult,
   InsightAction,
+  LedgerCheck,
   LogFilters,
   LogSearchResult,
   OpsOverview,
@@ -184,8 +185,30 @@ export class OpsService {
     this.run(this.http.post(`${this.api}/db/nodes/${node}/online`, {}), `${node} coming back online`);
   }
 
+  // Off, then on again: if it was the master, the slave takes over and this one comes back as the slave.
+  restartNode(node: string) {
+    this.run(this.http.post(`${this.api}/db/nodes/${node}/offline`, {}).pipe(
+      switchMap(() => timer(3000)),
+      switchMap(() => this.http.post(`${this.api}/db/nodes/${node}/online`, {}))
+    ), `${node} restarting`);
+  }
+
   nodeMaintenance(node: string, enabled: boolean) {
     this.run(this.http.post(`${this.api}/db/nodes/${node}/maintenance`, { enabled }), enabled ? `${node} in maintenance` : `${node} back in service`);
+  }
+
+  // Network partition drill: the coordinator loses sight of the node while services can still reach it.
+  nodePartition(node: string, enabled: boolean) {
+    this.run(this.http.post(`${this.api}/db/nodes/${node}/partition`, { enabled }), enabled ? `${node} cut off from the coordinator` : `${node} partition healed`);
+  }
+
+  setSynchronousCommit(enabled: boolean) {
+    this.run(this.http.put(`${this.api}/db/commit-mode`, { enabled }), enabled ? 'Synchronous commit on (no data loss on failover)' : 'Asynchronous commit (faster, may lose the last changes)');
+  }
+
+  // Double-entry invariants across every province's ledger.
+  verifyLedger() {
+    return this.http.get<LedgerCheck>(`${this.authService.apiUrl}/api/accounts/ledger/verify`);
   }
 
   switchover(province: string) {
@@ -272,10 +295,11 @@ export class OpsService {
     return this.http.post(`${this.api}/customers/batches/${id}/cancel`, {});
   }
 
-  searchCustomers(q: string, province: string, take = 50) {
-    let params = new HttpParams().set('take', take);
+  searchCustomers(q: string, province: string, page = 0, take = 50, city = '') {
+    let params = new HttpParams().set('take', take).set('page', page);
     if (q) params = params.set('q', q);
     if (province) params = params.set('province', province);
+    if (province && city) params = params.set('city', city);
     return this.http.get<CustomerSearchResult>(`${this.api}/customers/search`, { params });
   }
 }

@@ -48,7 +48,7 @@ const PRESETS = [10_000, 100_000, 1_000_000, 10_000_000];
                 </li>
               }
             </ul>
-            <button type="button" class="ops-btn small" (click)="form.province = province.name; form.city = ''">Load customers here</button>
+            <button type="button" class="ops-btn small" (click)="pickProvince(province.name)">Load customers here</button>
           </article>
         }
       </section>
@@ -152,10 +152,16 @@ const PRESETS = [10_000, 100_000, 1_000_000, 10_000_000];
         </div>
         <form class="search-row" (ngSubmit)="search()">
           <input name="q" [(ngModel)]="query" placeholder="Name, CNIC, phone or DB-number" />
-          <select name="province" [(ngModel)]="searchProvince">
-            <option value="">All regions</option>
+          <select name="province" [ngModel]="searchProvince" (ngModelChange)="searchProvince = $event; searchCity = ''; search()">
+            <option value="" [selected]="!searchProvince">All regions</option>
             @for (region of regions(); track region.name) {
-              <option [value]="region.name">{{ region.name }}</option>
+              <option [value]="region.name" [selected]="region.name === searchProvince">{{ region.name }}</option>
+            }
+          </select>
+          <select name="city" [ngModel]="searchCity" (ngModelChange)="searchCity = $event; search()" [disabled]="!searchProvince">
+            <option value="" [selected]="!searchCity">{{ searchProvince ? 'All cities' : 'Pick a province' }}</option>
+            @for (city of citiesFor(searchProvince); track city.name) {
+              <option [value]="city.name" [selected]="city.name === searchCity">{{ city.name }}</option>
             }
           </select>
           <button type="submit" class="ops-btn primary"><app-icon name="search" />Search</button>
@@ -193,6 +199,19 @@ const PRESETS = [10_000, 100_000, 1_000_000, 10_000_000];
               </tbody>
             </table>
           </div>
+          @if (r.total > 0) {
+            <div class="pager">
+              <span class="muted small">
+                {{ grouped(r.page * r.pageSize + 1) }}–{{ grouped(r.page * r.pageSize + r.items.length) }} of {{ grouped(r.total) }} customers ·
+                page {{ grouped(r.page + 1) }} of {{ grouped(pageCount(r)) }}
+              </span>
+              <span class="spacer"></span>
+              <button type="button" class="ops-btn small" (click)="goToPage(0)" [disabled]="r.page === 0">First</button>
+              <button type="button" class="ops-btn small" (click)="goToPage(r.page - 1)" [disabled]="r.page === 0">Previous</button>
+              <button type="button" class="ops-btn small" (click)="goToPage(r.page + 1)" [disabled]="r.page + 1 >= pageCount(r)">Next</button>
+              <button type="button" class="ops-btn small" (click)="goToPage(pageCount(r) - 1)" [disabled]="r.page + 1 >= pageCount(r)">Last</button>
+            </div>
+          }
         }
       </section>
     </div>
@@ -217,6 +236,7 @@ export class RegionsPage implements OnInit, OnDestroy {
   seedTotal = 1_000_000;
   query = '';
   searchProvince = '';
+  searchCity = '';
 
   readonly provinces = computed(() => this.ops.overview()?.simulation.provinces ?? []);
 
@@ -297,18 +317,52 @@ export class RegionsPage implements OnInit, OnDestroy {
     this.ops.cancelBatch(id).subscribe(() => this.loadJobs());
   }
 
-  search() {
-    this.ops.searchCustomers(this.query.trim(), this.searchProvince).subscribe({
+  // The bulk-load form and the customer table below both switch to this province.
+  pickProvince(name: string) {
+    this.form.province = name;
+    this.form.city = '';
+    this.searchProvince = name;
+    this.searchCity = '';
+    this.search();
+  }
+
+  // A new search starts at the first page; the pager below the table moves through the rest.
+  search(page = 0) {
+    this.ops.searchCustomers(this.query.trim(), this.searchProvince, page, 50, this.searchCity).subscribe({
       next: (result) => this.result.set(result),
       error: (error) => this.ops.notify('error', readErrorMessage(error, 'Search failed.'))
     });
   }
 
+  goToPage(page: number) {
+    this.search(Math.max(0, page));
+  }
+
+  pageCount(result: CustomerSearchResult) {
+    return Math.max(1, Math.ceil(result.total / result.pageSize));
+  }
+
+  // Polled every 2 s: a slow answer is never asked for again while it is still on its way.
+  private jobsLoading = false;
+  private regionsLoading = false;
+
   private loadJobs() {
-    this.ops.batches().subscribe({ next: (jobs) => this.jobs.set(jobs) });
+    if (this.jobsLoading) return;
+    this.jobsLoading = true;
+    this.ops.batches().subscribe({
+      next: (jobs) => this.jobs.set(jobs),
+      complete: () => (this.jobsLoading = false),
+      error: () => (this.jobsLoading = false)
+    });
   }
 
   private loadRegions() {
-    this.ops.regions().subscribe({ next: (regions) => this.regions.set(regions) });
+    if (this.regionsLoading) return;
+    this.regionsLoading = true;
+    this.ops.regions().subscribe({
+      next: (regions) => this.regions.set(regions),
+      complete: () => (this.regionsLoading = false),
+      error: () => (this.regionsLoading = false)
+    });
   }
 }

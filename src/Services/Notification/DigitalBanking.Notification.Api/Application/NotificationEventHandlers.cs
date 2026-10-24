@@ -109,6 +109,26 @@ public sealed class MoneyTransferredNotificationHandler(RegionalDb<NotificationD
     }
 }
 
+public sealed class TransferFailedNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<TransferFailedEvent>(db, notificationService)
+{
+    protected override void HandleEvent(TransferFailedEvent integrationEvent)
+    {
+        var reason = string.IsNullOrWhiteSpace(integrationEvent.Reason) ? string.Empty : $" {integrationEvent.Reason.TrimEnd('.')}.";
+        Notify(integrationEvent.UserId, "Transfer failed", $"Your transfer of PKR {integrationEvent.Amount:N2} could not be completed.{reason} No money was taken. Reference {integrationEvent.ReferenceNumber}.");
+    }
+}
+
+public sealed class TransferRefundedNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
+    : NotificationEventHandler<TransferRefundedEvent>(db, notificationService)
+{
+    protected override void HandleEvent(TransferRefundedEvent integrationEvent)
+    {
+        var reason = string.IsNullOrWhiteSpace(integrationEvent.Reason) ? string.Empty : $" {integrationEvent.Reason.TrimEnd('.')}.";
+        Notify(integrationEvent.UserId, "Transfer refunded", $"Your transfer of PKR {integrationEvent.Amount:N2} could not be delivered and the money is back in your account.{reason} Reference {integrationEvent.ReferenceNumber}.");
+    }
+}
+
 public sealed class PasswordChangedNotificationHandler(RegionalDb<NotificationDbContext> db, NotificationService notificationService)
     : NotificationEventHandler<PasswordChangedEvent>(db, notificationService)
 {

@@ -14,7 +14,10 @@ function money(amount: number, currency = 'PKR') {
 }
 
 function when(value: string) {
-  return new Date(value).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const date = new Date(value);
+  return value && !isNaN(date.getTime())
+    ? date.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
 }
 
 function verified(status: string) {
@@ -305,18 +308,19 @@ export class BankCustomersPage implements OnInit {
           <div class="table-wrap">
             @if (view() === 'queue') {
               <table class="ops-table">
-                <thead><tr><th>Request</th><th>Purpose</th><th>Documents</th><th>Submitted</th><th>Status</th></tr></thead>
+                <thead><tr><th>Customer</th><th>Request</th><th>Purpose</th><th>Documents</th><th>Submitted</th><th>Status</th></tr></thead>
                 <tbody>
                   @for (application of filteredQueue(); track application.id) {
                     <tr class="clickable" [class.selected]="selectedApplication()?.id === application.id" (click)="selected.set({ kind: 'application', item: application })">
-                      <td><strong>{{ application.accountType }}</strong></td>
+                      <td><strong>{{ customerName(application.userId) }}</strong><br /><small>{{ customerEmail(application.userId) }}</small></td>
+                      <td>{{ application.accountType }}</td>
                       <td>{{ application.purpose || 'Personal banking' }}</td>
                       <td>{{ docCount(application) }} / 3</td>
                       <td>{{ when(application.createdAtUtc) }}</td>
                       <td><span class="status-pill" [attr.data-status]="application.status === 'Rejected' ? 'Failed' : 'Queued'">{{ application.status }}</span></td>
                     </tr>
                   } @empty {
-                    <tr><td colspan="5" class="muted">No applications waiting for review.</td></tr>
+                    <tr><td colspan="6" class="muted">No applications waiting for review.</td></tr>
                   }
                 </tbody>
               </table>
@@ -344,7 +348,7 @@ export class BankCustomersPage implements OnInit {
         @if (selectedApplication(); as application) {
           <aside class="panel drawer">
             <div class="panel-head">
-              <h2>{{ application.accountType }} request</h2>
+              <h2>{{ customerName(application.userId) }} · {{ application.accountType }} request</h2>
               <button type="button" class="ops-icon-btn" (click)="selected.set(null)" aria-label="Close"><app-icon name="close" /></button>
             </div>
             <dl class="kv">
@@ -425,7 +429,7 @@ export class BankAccountsPage implements OnInit {
 
   filteredQueue() {
     const text = this.query.trim().toLowerCase();
-    return this.queue().filter((application) => !text || `${application.accountType} ${application.purpose}`.toLowerCase().includes(text));
+    return this.queue().filter((application) => !text || `${this.customerName(application.userId)} ${application.accountType} ${application.purpose}`.toLowerCase().includes(text));
   }
 
   filteredAccounts() {
@@ -480,7 +484,19 @@ export class BankAccountsPage implements OnInit {
     this.ops.notify('error', readErrorMessage(error, 'Unable to update this record.'));
   }
 
+  // Who sent each request (applications only carry the user id).
+  readonly customers = signal<CustomerProfile[]>([]);
+
+  customerName(userId: string) {
+    return this.customers().find((customer) => customer.userId === userId)?.fullName ?? 'Unknown customer';
+  }
+
+  customerEmail(userId: string) {
+    return this.customers().find((customer) => customer.userId === userId)?.email ?? '';
+  }
+
   private load() {
+    this.banking.getAdminCustomers().subscribe({ next: (items) => this.customers.set(items), error: () => undefined });
     this.banking.getAdminAccounts().subscribe({ next: (items) => this.accounts.set(items), error: () => undefined });
     this.banking.getAccountApplications().subscribe({ next: (items) => this.applications.set(items), error: () => undefined });
   }

@@ -25,8 +25,8 @@ import { readErrorMessage } from '../core/http-error';
         <form (ngSubmit)="submit()">
           <label>Full name<input name="fullName" [(ngModel)]="fullName" required /></label>
           <label>Email<input name="email" [(ngModel)]="email" type="email" required /></label>
-          <label>CNIC / National ID<input name="nationalId" [(ngModel)]="nationalId" required /></label>
-          <label>Mobile number<input name="phoneNumber" [(ngModel)]="phoneNumber" required /></label>
+          <label>CNIC / National ID<input name="nationalId" [ngModel]="nationalId" (ngModelChange)="nationalId = formatCnic($event)" inputmode="numeric" maxlength="15" placeholder="42101-1234567-1" pattern="\\d{5}-\\d{7}-\\d" required /></label>
+          <label>Mobile number<input name="phoneNumber" [ngModel]="phoneNumber" (ngModelChange)="phoneNumber = formatMobile($event)" inputmode="numeric" maxlength="12" placeholder="0300-1234567" pattern="03\\d{2}-\\d{7}" required /></label>
           <label>Address<input name="address" [(ngModel)]="address" required /></label>
           <label>
             Province
@@ -65,7 +65,29 @@ export class RegisterPage {
     private readonly router: Router
   ) {}
 
+  // 13 digits, dashes added while typing: 42101-1234567-1
+  formatCnic(value: string) {
+    const digits = (value ?? '').replace(/\D/g, '').slice(0, 13);
+    return [digits.slice(0, 5), digits.slice(5, 12), digits.slice(12)].filter(Boolean).join('-');
+  }
+
+  // Pakistani mobile, 11 digits: 0300-1234567
+  formatMobile(value: string) {
+    const digits = (value ?? '').replace(/\D/g, '').slice(0, 11);
+    return digits.length > 4 ? `${digits.slice(0, 4)}-${digits.slice(4)}` : digits;
+  }
+
   submit() {
+    if (!/^\d{5}-\d{7}-\d$/.test(this.nationalId)) {
+      this.error.set('Enter the full 13-digit CNIC, e.g. 42101-1234567-1.');
+      return;
+    }
+
+    if (!/^03\d{2}-\d{7}$/.test(this.phoneNumber)) {
+      this.error.set('Enter an 11-digit mobile number starting with 03, e.g. 0300-1234567.');
+      return;
+    }
+
     this.busy.set(true);
     this.error.set('');
     this.authService

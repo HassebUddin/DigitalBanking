@@ -40,12 +40,13 @@ public sealed class TransferRequestedHandler(TransactionService transactionServi
                 cancellationToken,
                 request.TransferId);
         }
-        catch (DomainException)
+        catch (DomainException exception)
         {
             // A business failure (wrong account, low balance, ...) is final: retrying would fail again.
-            // Make sure the customer still sees the transfer as failed in their history.
+            // Make sure the customer still sees the transfer as failed in their history, and is told.
             if (await transactionRepository.GetTransactionByIdAsync(request.TransferId, cancellationToken) is null)
             {
+                var referenceNumber = $"TXN{DateTime.UtcNow:yyyyMMddHHmmss}{Random.Shared.NextInt64(10_000_000_000, 99_999_999_999)}";
                 await transactionRepository.AddTransactionAsync(new BankTransaction
                 {
                     Id = request.TransferId,
@@ -54,10 +55,11 @@ public sealed class TransferRequestedHandler(TransactionService transactionServi
                     TransactionType = TransactionTypes.Transfer,
                     Amount = request.Amount,
                     Status = TransactionStatuses.Failed,
-                    ReferenceNumber = $"TXN{DateTime.UtcNow:yyyyMMddHHmmss}{Random.Shared.Next(1000, 9999)}",
+                    ReferenceNumber = referenceNumber,
                     Description = request.Description,
                     CreatedAtUtc = DateTime.UtcNow
                 }, request.UserId, cancellationToken);
+                transactionRepository.AddTransactionEvent(new TransferFailedEvent { TransactionId = request.TransferId, SourceAccountId = request.SourceAccountId, UserId = request.UserId, Amount = request.Amount, ReferenceNumber = referenceNumber, Reason = exception.Message });
                 await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
             }
         }

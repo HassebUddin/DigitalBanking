@@ -164,12 +164,13 @@ export class DeskHistoryPage implements OnInit {
   }
 
   isIn(type: string) {
-    return type === 'Deposit';
+    return type === 'Deposit' || type === 'Refund';
   }
 
   typeTitle(type: string) {
     if (type === 'Deposit') return 'Money in';
     if (type === 'Withdrawal') return 'Cash out';
+    if (type === 'Refund') return 'Refund (transfer rolled back)';
     return 'Transfer';
   }
 

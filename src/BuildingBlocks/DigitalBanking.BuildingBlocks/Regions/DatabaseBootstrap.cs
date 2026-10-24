@@ -54,6 +54,10 @@ public static class DatabaseBootstrap
                 return;
             }
 
+            // A one-time migration of existing data, not a live write: it passes the fencing triggers like replication
+            // does, so it cannot be skipped just because the coordinator had not granted a lease yet.
+            await ScalarAsync(connection, "EXEC sp_set_session_context @key = N'replication', @value = 1; SELECT 0", cancellationToken);
+
             foreach (var (schema, table) in TablesInInsertOrder(dbContext))
             {
                 var target = $"[{schema}].[{table}]";
@@ -90,6 +94,7 @@ public static class DatabaseBootstrap
         }
         finally
         {
+            await ScalarAsync(connection, "EXEC sp_set_session_context @key = N'replication', @value = NULL; SELECT 0", CancellationToken.None);
             if (opened)
             {
                 await connection.CloseAsync();

@@ -80,10 +80,13 @@ public sealed class AccountRow
 {
     public Guid Id { get; set; }
     public Guid CustomerId { get; set; }
+    public Guid UserId { get; set; }
     public string AccountNumber { get; set; } = string.Empty;
     public string AccountType { get; set; } = string.Empty;
     public decimal Balance { get; set; }
+    public string Currency { get; set; } = "PKR";
     public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAtUtc { get; set; }
 }
 
 public sealed class TransactionRow

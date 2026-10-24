@@ -33,21 +33,63 @@ public sealed class AccountLedgerClient(HttpClient httpClient, IConfiguration co
             ?? throw new NotFoundException("Destination account was not found.");
     }
 
-    public async Task DebitAsync(Guid accountId, decimal amount, string referenceNumber, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Guid>> GetAccountIdsOfUserAsync(Guid userId, CancellationToken cancellationToken)
     {
-        await PostMovementAsync(accountId, "debit", amount, referenceNumber, cancellationToken);
-    }
-
-    public async Task CreditAsync(Guid accountId, decimal amount, string referenceNumber, CancellationToken cancellationToken)
-    {
-        await PostMovementAsync(accountId, "credit", amount, referenceNumber, cancellationToken);
-    }
-
-    private async Task PostMovementAsync(Guid accountId, string action, decimal amount, string referenceNumber, CancellationToken cancellationToken)
-    {
-        using var request = CreateRequest(HttpMethod.Post, $"/api/accounts/internal/{accountId}/{action}");
-        request.Content = JsonContent.Create(new { amount, referenceNumber });
+        using var request = CreateRequest(HttpMethod.Get, $"/api/accounts/internal/users/{userId}/account-ids");
         var response = await SendAsync(request, cancellationToken);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<List<Guid>>(cancellationToken) ?? []
+            : [];
+    }
+
+    // Whether the account already holds the debit (or credit) made under this reference number.
+    public async Task<bool> MovementAppliedAsync(Guid accountId, string referenceNumber, string side, CancellationToken cancellationToken)
+    {
+        using var request = CreateRequest(HttpMethod.Get, $"/api/accounts/internal/{accountId}/movements/{Uri.EscapeDataString(referenceNumber)}?side={side}");
+        var response = await SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new NotFoundException("Account was not found.");
+        }
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
+        return body.TryGetProperty("applied", out var applied) && applied.GetBoolean();
+    }
+
+    // The reference number is the idempotency key on the account side: retrying a movement never applies it twice.
+    // The purpose (Deposit, Withdrawal, TransferOut, TransferIn, Refund) picks the general-ledger side of the posting.
+    public async Task DebitAsync(Guid accountId, decimal amount, string referenceNumber, string purpose, CancellationToken cancellationToken)
+    {
+        await PostMovementAsync(accountId, "debit", amount, referenceNumber, purpose, cancellationToken);
+    }
+
+    public async Task CreditAsync(Guid accountId, decimal amount, string referenceNumber, string purpose, CancellationToken cancellationToken)
+    {
+        await PostMovementAsync(accountId, "credit", amount, referenceNumber, purpose, cancellationToken);
+    }
+
+    // A province failing over answers "unavailable" for about ten seconds. Movements are idempotent, so they are
+    // simply retried through that window before the caller has to defer the transfer.
+    private static readonly TimeSpan[] MovementRetryDelays = [.. Enumerable.Repeat(TimeSpan.FromMilliseconds(1500), 9)];
+
+    private async Task PostMovementAsync(Guid accountId, string action, decimal amount, string referenceNumber, string purpose, CancellationToken cancellationToken)
+    {
+        HttpResponseMessage response;
+        for (var attempt = 0; ; attempt++)
+        {
+            using var request = CreateRequest(HttpMethod.Post, $"/api/accounts/internal/{accountId}/{action}");
+            request.Content = JsonContent.Create(new { amount, referenceNumber, purpose });
+            try
+            {
+                response = await SendAsync(request, cancellationToken);
+                break;
+            }
+            catch (ServiceUnavailableException) when (attempt < MovementRetryDelays.Length)
+            {
+                await Task.Delay(MovementRetryDelays[attempt], cancellationToken);
+            }
+        }
+
         if (response.IsSuccessStatusCode)
         {
             return;
