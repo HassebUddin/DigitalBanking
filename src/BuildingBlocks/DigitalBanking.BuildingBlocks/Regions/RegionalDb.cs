@@ -153,6 +153,32 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         return rows;
     }
 
+    // One page of a list that spans every province, newest first. Each province returns its count and its newest
+    // (page + 1) * pageSize rows of the already filtered and ordered query; the merge keeps the requested page.
+    // A province that is down is left out of both the rows and the total.
+    public async Task<(List<T> Items, long Total)> PageAsync<T>(
+        Func<TContext, IQueryable<T>> newestFirstQuery, Func<T, DateTime> createdAt, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var rows = new List<T>();
+        long total = 0;
+        var needed = (page + 1) * pageSize;
+        foreach (var region in BankRegions.All)
+        {
+            try
+            {
+                var query = newestFirstQuery(For(region));
+                total += await query.LongCountAsync(cancellationToken);
+                rows.AddRange(await query.Take(needed).ToListAsync(cancellationToken));
+            }
+            catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
+            {
+                await DropAsync(region);
+            }
+        }
+
+        return (rows.OrderByDescending(createdAt).Skip(page * pageSize).Take(pageSize).ToList(), total);
+    }
+
     // A context whose connection failed is not reused for the rest of the request.
     private async Task DropAsync(string region)
     {
@@ -162,10 +188,13 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         }
     }
 
-    // Saves every province database touched in this request.
-    public async Task SaveChangesAsync(CancellationToken cancellationToken)
+    // Saves every province database touched in this request. saveLast: the province holding the "event handled"
+    // (inbox) record; it is saved only after every other province succeeded, so a province that fails mid-way
+    // makes the whole event run again instead of being marked done with part of its work lost.
+    public async Task SaveChangesAsync(CancellationToken cancellationToken, string? saveLast = null)
     {
-        foreach (var context in contexts.Values)
+        var last = saveLast is null ? null : BankRegions.Normalize(saveLast);
+        foreach (var (region, context) in contexts.OrderBy(pair => pair.Key == last ? 1 : 0))
         {
             if (context.ChangeTracker.HasChanges())
             {

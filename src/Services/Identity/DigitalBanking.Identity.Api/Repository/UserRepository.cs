@@ -15,4 +15,19 @@ public sealed class UserRepository(IdentityDbContext dbContext) : IUserRepositor
     {
         return await dbContext.Users.Where(user => user.Id != userId && user.IsActive).OrderBy(user => user.FullName).ThenBy(user => user.Email).ToListAsync(cancellationToken);
     }
+
+    public Task<User?> GetUserByEmailAsync(string email, CancellationToken cancellationToken)
+    {
+        return dbContext.Users.FirstOrDefaultAsync(user => user.Email == email, cancellationToken);
+    }
+
+    public void AddUser(User user)
+    {
+        dbContext.Users.Add(user);
+    }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        return dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

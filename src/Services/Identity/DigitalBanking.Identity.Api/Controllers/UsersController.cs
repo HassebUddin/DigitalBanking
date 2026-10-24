@@ -24,6 +24,13 @@ public sealed class UsersController(UserService userService, CurrentUser current
         return Ok(await userService.GetActiveUsersExceptAsync(currentUser.UserId, currentUser.Role, cancellationToken));
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpPost("enable-demo-login")]
+    public async Task<ActionResult<DemoLoginResponse>> EnableDemoLogin(EnableDemoLoginRequest request, CancellationToken cancellationToken)
+    {
+        return Ok(await userService.EnableDemoLoginAsync(request, cancellationToken));
+    }
+
     [Authorize]
     [HttpGet("user-by-id/{userId:guid}")]
     public async Task<ActionResult<DirectoryUserResponse>> GetUserById(Guid userId, CancellationToken cancellationToken)

@@ -39,7 +39,7 @@ interface HistoryGroup {
 
       <label class="history-search">
         <app-icon name="search" />
-        <input name="searchText" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Search amount, ref or details" />
+        <input name="searchText" [(ngModel)]="searchText" (ngModelChange)="onSearchChange()" placeholder="Search reference, amount, details (reference indexed for faster search)" />
         @if (searchText) {
           <button class="ghost-clear" type="button" (click)="clearSearch()">Clear</button>
         }

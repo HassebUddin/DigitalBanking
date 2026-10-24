@@ -1,4 +1,5 @@
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.Contracts.Events;
 using DigitalBanking.Transaction.Api.Contracts;
 using DigitalBanking.Transaction.Api.Domain;
@@ -180,6 +181,15 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
         await transactionRepository.WaitForStandbyAsync(strict: false, cancellationToken);
         return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+    }
+
+    public async Task<PagedResult<TransactionResponse>> SearchTransactionsAsync(TransactionSearchRequest request, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        (page, pageSize) = PagedResult<TransactionResponse>.Normalize(page, pageSize);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var (transactions, total, strategy) = await transactionRepository.SearchTransactionsAsync(request, page, pageSize, cancellationToken);
+        var items = transactions.Select(transaction => new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc }).ToList();
+        return new PagedResult<TransactionResponse>(items, total, page, pageSize) { Strategy = strategy, TookMs = Math.Round(watch.Elapsed.TotalMilliseconds, 1) };
     }
 
     public async Task<IReadOnlyList<TransactionResponse>> GetTransactionsAsync(Guid userId, bool isAdmin, TransactionSearchRequest request, CancellationToken cancellationToken)

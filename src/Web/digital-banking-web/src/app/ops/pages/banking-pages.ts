@@ -6,7 +6,10 @@ import { BankingService, queuedMessage } from '../../core/banking.service';
 import { readErrorMessage } from '../../core/http-error';
 import { AccountApplication, AuditLog, BankAccount, BankTransaction, CustomerProfile, DashboardSummary } from '../../core/models';
 import { AppIcon } from '../../ui/icon';
+import { AppPager } from '../../ui/pager';
+import { AppSearchMeta } from '../../ui/search-meta';
 import { compact, grouped } from '../ops-format';
+import { DatabaseInfo } from '../ops.models';
 import { OpsService } from '../ops.service';
 
 function money(amount: number, currency = 'PKR') {
@@ -151,7 +154,7 @@ export class BankOverviewPage implements OnInit {
 
 @Component({
   selector: 'app-bank-customers-page',
-  imports: [FormsModule, AppIcon],
+  imports: [FormsModule, AppIcon, AppPager, AppSearchMeta],
   template: `
     <div class="ops-page">
       <header class="ops-head">
@@ -163,24 +166,37 @@ export class BankOverviewPage implements OnInit {
       </header>
 
       <div class="panel toolbar-panel">
-        <div class="logs-search"><app-icon name="search" /><input [(ngModel)]="query" placeholder="Search name, email, phone" /></div>
+        <div class="logs-search"><app-icon name="search" /><input [(ngModel)]="query" (ngModelChange)="searchSoon()" placeholder="Search name, CNIC, phone, email (CNIC, phone &amp; email indexed for faster search)" /></div>
         <div class="segmented">
-          <button type="button" [class.on]="kyc() === 'all'" (click)="kyc.set('all')">All {{ customers().length }}</button>
-          <button type="button" [class.on]="kyc() === 'pending'" (click)="kyc.set('pending')">KYC pending</button>
-          <button type="button" [class.on]="kyc() === 'verified'" (click)="kyc.set('verified')">Verified</button>
+          <button type="button" [class.on]="kyc() === 'all'" (click)="setKyc('all')">All</button>
+          <button type="button" [class.on]="kyc() === 'pending'" (click)="setKyc('pending')">KYC pending</button>
+          <button type="button" [class.on]="kyc() === 'verified'" (click)="setKyc('verified')">Verified</button>
         </div>
       </div>
 
-      <div class="with-drawer" [class.open]="!!selected()">
+      <div>
         <section class="panel">
           <div class="table-wrap">
             <table class="ops-table">
-              <thead><tr><th>Customer</th><th>Email</th><th>Mobile</th><th>CNIC</th><th>Province</th><th>KYC</th><th>Joined</th></tr></thead>
+              <thead><tr><th>Customer</th><th>Email</th><th>Password</th><th>Mobile</th><th>CNIC</th><th>Province</th><th>KYC</th><th>Joined</th></tr></thead>
               <tbody>
                 @for (customer of filtered(); track customer.id) {
-                  <tr class="clickable" [class.selected]="selected()?.id === customer.id" (click)="selected.set(customer)">
+                  <tr class="clickable" [class.selected]="selected()?.id === customer.id" (click)="select(customer)">
                     <td><span class="avatar-chip">{{ initial(customer) }}</span>{{ customer.fullName || '—' }}</td>
                     <td>{{ customer.email }}</td>
+                    <td class="pw-cell" (click)="$event.stopPropagation()">
+                      @if (isBulk(customer)) {
+                        <span class="mono">{{ revealed()[customer.id] || '••••••••' }}</span>
+                        <button type="button" class="ops-icon-btn" [disabled]="busy()" (click)="toggleRowPassword(customer)" [title]="revealed()[customer.id] ? 'Hide password' : 'Show password'">
+                          <app-icon [name]="revealed()[customer.id] ? 'close' : 'key'" />
+                        </button>
+                        @if (revealed()[customer.id]) {
+                          <button type="button" class="ops-icon-btn" (click)="copy(revealed()[customer.id], 'Password')" title="Copy password"><app-icon name="copy" /></button>
+                        }
+                      } @else {
+                        <span class="muted" title="Set by the customer, stored encrypted">Hidden</span>
+                      }
+                    </td>
                     <td class="mono">{{ customer.phoneNumber || '—' }}</td>
                     <td class="mono">{{ maskCnic(customer.nationalId) }}</td>
                     <td>{{ provinceName(customer.region) }}</td>
@@ -188,15 +204,18 @@ export class BankOverviewPage implements OnInit {
                     <td>{{ when(customer.createdAtUtc) }}</td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="6" class="muted">{{ loading() ? 'Loading…' : 'No customers match.' }}</td></tr>
+                  <tr><td colspan="8" class="muted">{{ loading() ? 'Loading…' : 'No customers match.' }}</td></tr>
                 }
               </tbody>
             </table>
           </div>
+          <app-search-meta [strategy]="strategy()" [tookMs]="tookMs()" tip="Tip: CNIC (42101-…), phone (03xx-…) and email searches use an index and are the fastest." />
+          <app-pager [page]="page()" [pageSize]="pageSize" [total]="total()" [loading]="loading()" (pageChange)="goTo($event)" />
         </section>
 
         @if (selected(); as customer) {
-          <aside class="panel drawer">
+          <div class="ops-dialog-backdrop" (click)="selected.set(null)"></div>
+          <div class="ops-dialog ops-ui txn-dialog" role="dialog">
             <div class="panel-head">
               <h2>{{ customer.fullName || customer.email }}</h2>
               <button type="button" class="ops-icon-btn" (click)="selected.set(null)" aria-label="Close"><app-icon name="close" /></button>
@@ -211,12 +230,35 @@ export class BankOverviewPage implements OnInit {
               <div><dt>Customer id</dt><dd class="mono">{{ customer.id }}</dd></div>
               <div><dt>Joined</dt><dd>{{ when(customer.createdAtUtc) }}</dd></div>
             </dl>
+            <div class="login-box">
+              <h3>App login</h3>
+              <div class="login-line">
+                <span class="login-key">Email</span>
+                <span class="mono login-val">{{ customer.email }}</span>
+                <button type="button" class="ops-icon-btn" (click)="copy(customer.email, 'Email')" aria-label="Copy email"><app-icon name="copy" /></button>
+              </div>
+              @if (isBulk(customer)) {
+                <div class="login-line">
+                  <span class="login-key">Password</span>
+                  <span class="mono login-val">{{ password() || '••••••••••' }}</span>
+                  <button type="button" class="ops-icon-btn" [disabled]="busy()" (click)="togglePassword(customer)" [attr.aria-label]="password() ? 'Hide password' : 'Show password'">
+                    <app-icon [name]="password() ? 'close' : 'key'" />
+                  </button>
+                  @if (password()) {
+                    <button type="button" class="ops-icon-btn" (click)="copy(password(), 'Password')" aria-label="Copy password"><app-icon name="copy" /></button>
+                  }
+                </div>
+                <p class="muted login-note">Bulk-loaded demo customer. Viewing the password turns on their app login.</p>
+              } @else {
+                <p class="muted login-note">Password was set by the customer and is stored encrypted, so it cannot be shown.</p>
+              }
+            </div>
             @if (!isVerified(customer)) {
               <div class="btn-col">
                 <button type="button" class="ops-btn primary" [disabled]="busy()" (click)="verify(customer)"><app-icon name="shield" />Verify KYC</button>
               </div>
             }
-          </aside>
+          </div>
         }
       </div>
     </div>
@@ -233,15 +275,32 @@ export class BankCustomersPage implements OnInit {
   readonly when = when;
   readonly maskCnic = maskCnic;
   readonly provinceName = provinceName;
+  readonly page = signal(0);
+  readonly total = signal(0);
+  readonly pageSize = 50;
+  readonly strategy = signal('');
+  readonly tookMs = signal(0);
+  private searchTimer = 0;
   query = '';
 
+  // The server already searched, filtered and paged: show the page as it came.
   filtered() {
-    const text = this.query.trim().toLowerCase();
-    return this.customers().filter((customer) => {
-      const matchesKyc = this.kyc() === 'all' || (this.kyc() === 'verified') === verified(customer.kycStatus);
-      const haystack = `${customer.fullName} ${customer.email} ${customer.phoneNumber}`.toLowerCase();
-      return matchesKyc && (!text || haystack.includes(text));
-    });
+    return this.customers();
+  }
+
+  searchSoon() {
+    window.clearTimeout(this.searchTimer);
+    this.searchTimer = window.setTimeout(() => this.goTo(0), 300);
+  }
+
+  setKyc(value: 'all' | 'pending' | 'verified') {
+    this.kyc.set(value);
+    this.goTo(0);
+  }
+
+  goTo(page: number) {
+    this.page.set(page);
+    this.load();
   }
 
   ngOnInit() {
@@ -254,6 +313,72 @@ export class BankCustomersPage implements OnInit {
 
   initial(customer: CustomerProfile) {
     return (customer.fullName || customer.email || 'C').charAt(0).toUpperCase();
+  }
+
+  readonly password = signal('');
+
+  select(customer: CustomerProfile) {
+    this.password.set('');
+    this.selected.set(customer);
+  }
+
+  isBulk(customer: CustomerProfile) {
+    return customer.email.endsWith('@bulk.digitalbank.local');
+  }
+
+  togglePassword(customer: CustomerProfile) {
+    if (this.password()) {
+      this.password.set('');
+      return;
+    }
+
+    this.busy.set(true);
+    this.banking.enableDemoLogin(customer).subscribe({
+      next: (login) => {
+        this.busy.set(false);
+        this.password.set(login.password);
+        if (login.created) {
+          this.ops.notify('ok', `App login turned on for ${customer.fullName || customer.email}`);
+        }
+      },
+      error: (error) => {
+        this.busy.set(false);
+        this.ops.notify('error', readErrorMessage(error, 'Could not turn on the login for this customer.'));
+      }
+    });
+  }
+
+  // Passwords shown in the table, by customer id.
+  readonly revealed = signal<Record<string, string>>({});
+
+  toggleRowPassword(customer: CustomerProfile) {
+    const { [customer.id]: shown, ...rest } = this.revealed();
+    if (shown) {
+      this.revealed.set(rest);
+      return;
+    }
+
+    this.busy.set(true);
+    this.banking.enableDemoLogin(customer).subscribe({
+      next: (login) => {
+        this.busy.set(false);
+        this.revealed.set({ ...this.revealed(), [customer.id]: login.password });
+        if (login.created) {
+          this.ops.notify('ok', `App login turned on for ${customer.fullName || customer.email}`);
+        }
+      },
+      error: (error) => {
+        this.busy.set(false);
+        this.ops.notify('error', readErrorMessage(error, 'Could not turn on the login for this customer.'));
+      }
+    });
+  }
+
+  copy(text: string, what: string) {
+    navigator.clipboard.writeText(text).then(
+      () => this.ops.notify('ok', `${what} copied`),
+      () => this.ops.notify('error', `Could not copy the ${what.toLowerCase()}.`)
+    );
   }
 
   verify(customer: CustomerProfile) {
@@ -273,9 +398,13 @@ export class BankCustomersPage implements OnInit {
   }
 
   private load() {
-    this.banking.getAdminCustomers().subscribe({
-      next: (items) => {
-        this.customers.set(items);
+    this.loading.set(true);
+    this.banking.searchCustomers(this.query.trim(), this.kyc() === 'all' ? '' : this.kyc(), this.page(), this.pageSize).subscribe({
+      next: (result) => {
+        this.customers.set(result.items);
+        this.strategy.set(result.strategy ?? '');
+        this.tookMs.set(result.tookMs ?? 0);
+        this.total.set(result.total);
         this.loading.set(false);
       },
       error: () => this.loading.set(false)
@@ -285,7 +414,7 @@ export class BankCustomersPage implements OnInit {
 
 @Component({
   selector: 'app-bank-accounts-page',
-  imports: [FormsModule, AppIcon],
+  imports: [FormsModule, AppIcon, AppPager, AppSearchMeta],
   template: `
     <div class="ops-page">
       <header class="ops-head">
@@ -299,12 +428,12 @@ export class BankCustomersPage implements OnInit {
       <div class="panel toolbar-panel">
         <div class="segmented">
           <button type="button" [class.on]="view() === 'queue'" (click)="view.set('queue'); selected.set(null)">Applications <b class="seg-count">{{ queue().length }}</b></button>
-          <button type="button" [class.on]="view() === 'live'" (click)="view.set('live'); selected.set(null)">Live accounts <b class="seg-count">{{ accounts().length }}</b></button>
+          <button type="button" [class.on]="view() === 'live'" (click)="showLive()">Live accounts <b class="seg-count">{{ liveTotal() }}</b></button>
         </div>
-        <div class="logs-search"><app-icon name="search" /><input [(ngModel)]="query" placeholder="Search type, number or purpose" /></div>
+        <div class="logs-search"><app-icon name="search" /><input [(ngModel)]="query" (ngModelChange)="searchSoon()" placeholder="Search account number, type (account number indexed for faster search)" /></div>
       </div>
 
-      <div class="with-drawer" [class.open]="!!selected()">
+      <div>
         <section class="panel">
           <div class="table-wrap">
             @if (view() === 'queue') {
@@ -342,12 +471,15 @@ export class BankCustomersPage implements OnInit {
                   }
                 </tbody>
               </table>
+              <app-search-meta [strategy]="strategy()" [tookMs]="tookMs()" tip="Tip: searching by account number (digits) uses its unique index and is the fastest." />
+              <app-pager [page]="livePage()" [pageSize]="pageSize" [total]="liveTotal()" (pageChange)="goTo($event)" />
             }
           </div>
         </section>
 
         @if (selectedApplication(); as application) {
-          <aside class="panel drawer">
+          <div class="ops-dialog-backdrop" (click)="selected.set(null)"></div>
+          <div class="ops-dialog ops-ui txn-dialog" role="dialog">
             <div class="panel-head">
               <h2>{{ customerName(application.userId) }} · {{ application.accountType }} request</h2>
               <button type="button" class="ops-icon-btn" (click)="selected.set(null)" aria-label="Close"><app-icon name="close" /></button>
@@ -376,11 +508,12 @@ export class BankCustomersPage implements OnInit {
                 <button type="button" class="ops-btn danger" [disabled]="busy()" (click)="review(application, 'Rejected', 'Documents need correction.')">Reject</button>
               }
             </div>
-          </aside>
+          </div>
         }
 
         @if (selectedAccount(); as account) {
-          <aside class="panel drawer">
+          <div class="ops-dialog-backdrop" (click)="selected.set(null)"></div>
+          <div class="ops-dialog ops-ui txn-dialog" role="dialog">
             <div class="panel-head">
               <h2>{{ account.accountType }} account</h2>
               <button type="button" class="ops-icon-btn" (click)="selected.set(null)" aria-label="Close"><app-icon name="close" /></button>
@@ -399,7 +532,7 @@ export class BankCustomersPage implements OnInit {
                 <button type="button" class="ops-btn primary" [disabled]="busy()" (click)="freeze(account, false)">Unfreeze account</button>
               }
             </div>
-          </aside>
+          </div>
         }
       </div>
     </div>
@@ -433,9 +566,44 @@ export class BankAccountsPage implements OnInit {
     return this.queue().filter((application) => !text || `${this.customerName(application.userId)} ${application.accountType} ${application.purpose}`.toLowerCase().includes(text));
   }
 
+  // Live accounts come from the server already searched and paged.
   filteredAccounts() {
-    const text = this.query.trim().toLowerCase();
-    return this.accounts().filter((account) => !text || `${account.accountType} ${account.accountNumber} ${account.status}`.toLowerCase().includes(text));
+    return this.accounts();
+  }
+
+  readonly livePage = signal(0);
+  readonly liveTotal = signal(0);
+  readonly pageSize = 50;
+  readonly strategy = signal('');
+  readonly tookMs = signal(0);
+  private searchTimer = 0;
+
+  showLive() {
+    this.view.set('live');
+    this.selected.set(null);
+    this.goTo(0);
+  }
+
+  searchSoon() {
+    if (this.view() !== 'live') {
+      return;
+    }
+
+    window.clearTimeout(this.searchTimer);
+    this.searchTimer = window.setTimeout(() => this.goTo(0), 300);
+  }
+
+  goTo(page: number) {
+    this.livePage.set(page);
+    this.banking.searchAccounts(this.query.trim(), '', page, this.pageSize).subscribe({
+      next: (result) => {
+        this.accounts.set(result.items);
+        this.strategy.set(result.strategy ?? '');
+        this.tookMs.set(result.tookMs ?? 0);
+        this.liveTotal.set(result.total);
+      },
+      error: () => undefined
+    });
   }
 
   ngOnInit() {
@@ -498,14 +666,14 @@ export class BankAccountsPage implements OnInit {
 
   private load() {
     this.banking.getAdminCustomers().subscribe({ next: (items) => this.customers.set(items), error: () => undefined });
-    this.banking.getAdminAccounts().subscribe({ next: (items) => this.accounts.set(items), error: () => undefined });
+    this.goTo(this.livePage());
     this.banking.getAccountApplications().subscribe({ next: (items) => this.applications.set(items), error: () => undefined });
   }
 }
 
 @Component({
   selector: 'app-bank-transactions-page',
-  imports: [FormsModule, AppIcon],
+  imports: [FormsModule, AppIcon, AppPager, AppSearchMeta],
   template: `
     <div class="ops-page">
       <header class="ops-head">
@@ -517,45 +685,67 @@ export class BankAccountsPage implements OnInit {
       </header>
 
       <section class="kpi-row four">
-        <article class="kpi"><span class="kpi-label">Transactions</span><strong>{{ grouped(filtered().length) }}</strong></article>
+        <article class="kpi"><span class="kpi-label">Transactions</span><strong>{{ grouped(total()) }}</strong></article>
         <article class="kpi"><span class="kpi-label">Money in</span><strong>Rs {{ compact(totalIn(), 2) }}</strong></article>
         <article class="kpi"><span class="kpi-label">Money out</span><strong>Rs {{ compact(totalOut(), 2) }}</strong></article>
         <article class="kpi"><span class="kpi-label">Largest</span><strong>Rs {{ compact(largest(), 2) }}</strong></article>
       </section>
 
       <div class="panel toolbar-panel">
-        <div class="logs-search"><app-icon name="search" /><input [(ngModel)]="query" placeholder="Search reference or description" /></div>
+        <div class="logs-search"><app-icon name="search" /><input [(ngModel)]="query" (ngModelChange)="searchSoon()" placeholder="Search account number, reference, description, amount (account no. &amp; reference TXN… for exact match)" /></div>
         <div class="segmented">
           @for (type of types(); track type) {
-            <button type="button" [class.on]="type === typeFilter()" (click)="typeFilter.set(type)">{{ type }}</button>
+            <button type="button" [class.on]="type === typeFilter()" (click)="setType(type)">{{ type }}</button>
           }
         </div>
+        <select class="toolbar-select" [ngModel]="source()" (ngModelChange)="setSource($event)" title="Which database to read the ledger from">
+          <option value="">Read from: all provinces (live)</option>
+          @for (node of nodes(); track node.key) {
+            <option [value]="node.key">Read from: {{ nodeName(node.key) }} · {{ node.status === 'online' ? node.role : node.status }}</option>
+          }
+        </select>
       </div>
 
-      <div class="with-drawer" [class.open]="!!selected()">
+      @if (source()) {
+        <div class="source-banner" [class.bad]="!!sourceError()">
+          <app-icon name="database" />
+          @if (sourceError()) {
+            <span><b>{{ nodeName(source()) }}</b> cannot be read: {{ sourceError() }}</span>
+          } @else {
+            <span>Reading directly from <b>{{ sourceDatabase() }}</b> ({{ sourceRole() }}) · {{ grouped(total()) }} transactions stored on this node</span>
+          }
+        </div>
+      }
+
+      <div>
         <section class="panel">
           <div class="table-wrap">
             <table class="ops-table">
-              <thead><tr><th>Time</th><th>Type</th><th>Reference</th><th>Description</th><th class="num">Amount</th><th>Status</th></tr></thead>
+              <thead><tr><th>Time</th><th>Type</th><th>From account</th><th>To account</th><th>Reference</th><th>Description</th><th class="num">Amount</th><th>Status</th></tr></thead>
               <tbody>
                 @for (transaction of filtered(); track transaction.id) {
-                  <tr class="clickable" [class.selected]="selected()?.id === transaction.id" (click)="selected.set(transaction)">
+                  <tr class="clickable" [class.selected]="selected()?.id === transaction.id" (click)="openTransaction(transaction)">
                     <td>{{ when(transaction.createdAtUtc) }}</td>
                     <td><span class="flow" [class.in]="isIn(transaction)">{{ isIn(transaction) ? '↓' : '↑' }}</span>{{ transaction.transactionType }}</td>
+                    <td class="mono">{{ accountNo(transaction.accountId) }}</td>
+                    <td class="mono">{{ transaction.counterpartyAccountId ? accountNo(transaction.counterpartyAccountId) : '—' }}</td>
                     <td class="mono">{{ transaction.referenceNumber }}</td>
                     <td>{{ transaction.description || '—' }}</td>
                     <td class="num">{{ money(transaction.amount) }}</td>
                     <td><span class="status-pill" [attr.data-status]="transaction.status === 'Completed' ? 'Success' : transaction.status">{{ transaction.status }}</span></td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="6" class="muted">No transactions match.</td></tr>
+                  <tr><td colspan="8" class="muted">No transactions match.</td></tr>
                 }
               </tbody>
             </table>
           </div>
+          <app-search-meta [strategy]="strategy()" [tookMs]="tookMs()" tip="Tip: searching by reference (TXN…) uses its unique index and is the fastest." />
+          <app-pager [page]="page()" [pageSize]="pageSize" [total]="total()" (pageChange)="goTo($event)" />
         </section>
         @if (selected(); as transaction) {
-          <aside class="panel drawer">
+          <div class="ops-dialog-backdrop" (click)="selected.set(null)"></div>
+          <div class="ops-dialog ops-ui txn-dialog" role="dialog" aria-label="Transaction details">
             <div class="panel-head">
               <h2>{{ transaction.transactionType }}</h2>
               <button type="button" class="ops-icon-btn" (click)="selected.set(null)" aria-label="Close"><app-icon name="close" /></button>
@@ -565,11 +755,22 @@ export class BankAccountsPage implements OnInit {
               <div><dt>Status</dt><dd>{{ transaction.status }}</dd></div>
               <div><dt>Reference</dt><dd class="mono">{{ transaction.referenceNumber }}</dd></div>
               <div><dt>Description</dt><dd>{{ transaction.description || 'No description' }}</dd></div>
-              <div><dt>Account</dt><dd class="mono">{{ transaction.accountId }}</dd></div>
-              @if (transaction.counterpartyAccountId) { <div><dt>Counterparty</dt><dd class="mono">{{ transaction.counterpartyAccountId }}</dd></div> }
+              <div><dt>From account</dt><dd class="mono">{{ accountNo(transaction.accountId) }}</dd></div>
+              @if (transaction.counterpartyAccountId) { <div><dt>To account</dt><dd class="mono">{{ accountNo(transaction.counterpartyAccountId) }}</dd></div> }
               <div><dt>Time</dt><dd>{{ when(transaction.createdAtUtc) }}</dd></div>
             </dl>
-          </aside>
+            <div class="login-box">
+              <h3>Stored on which database?</h3>
+              <button type="button" class="ops-btn" [disabled]="checking()" (click)="checkNodes(transaction)"><app-icon name="database" />{{ checking() ? 'Checking…' : 'Check on every node' }}</button>
+              @for (hit of copies(); track hit.key) {
+                <div class="login-line">
+                  <span class="copy-mark" [attr.data-state]="hit.state">{{ hit.state === 'found' ? '✓' : hit.state === 'missing' ? '✗' : '!' }}</span>
+                  <span class="login-val">{{ nodeName(hit.key) }} <span class="muted">· {{ hit.role }}</span></span>
+                  <span class="muted">{{ hit.state === 'found' ? 'has it' : hit.state === 'missing' ? 'not there' : 'down' }}</span>
+                </div>
+              }
+            </div>
+          </div>
         }
       </div>
     </div>
@@ -577,6 +778,37 @@ export class BankAccountsPage implements OnInit {
 })
 export class BankTransactionsPage implements OnInit {
   private readonly banking = inject(BankingService);
+  private readonly ops = inject(OpsService);
+  // Database nodes (Punjab_A, Punjab_B, ...) the ledger can be read from directly, to show replication.
+  readonly nodes = signal<DatabaseInfo[]>([]);
+  readonly source = signal('');
+  readonly sourceError = signal('');
+  readonly checking = signal(false);
+  readonly copies = signal<{ key: string; role: string; state: 'found' | 'missing' | 'down' }[]>([]);
+  // Account id -> account number, so the ledger shows (and is searched by) the number customers know.
+  readonly accountNumbers = signal(new Map<string, string>());
+
+  accountNo(accountId: string | null | undefined) {
+    if (!accountId) return '—';
+    return this.accountNumbers().get(accountId.toLowerCase()) ?? accountId.slice(0, 8) + '…';
+  }
+
+  // A typed account number, if it is one we know: its account id.
+  private searchedAccountId() {
+    const text = this.query.trim();
+    if (!/^\d{6,}$/.test(text)) return '';
+    for (const [id, number] of this.accountNumbers()) {
+      if (number === text) return id;
+    }
+    return '';
+  }
+
+  private loadAccountNumbers() {
+    this.banking.getAccounts().subscribe({
+      next: (accounts) => this.accountNumbers.set(new Map(accounts.map((account) => [account.id.toLowerCase(), account.accountNumber]))),
+      error: () => undefined
+    });
+  }
   readonly transactions = signal<BankTransaction[]>([]);
   readonly selected = signal<BankTransaction | null>(null);
   readonly typeFilter = signal('All');
@@ -586,13 +818,144 @@ export class BankTransactionsPage implements OnInit {
   readonly when = when;
   query = '';
 
-  readonly types = computed(() => ['All', ...new Set(this.transactions().map((transaction) => transaction.transactionType))]);
+  readonly types = signal(['All', 'Deposit', 'Withdrawal', 'Transfer', 'Refund']);
+  readonly page = signal(0);
+  readonly total = signal(0);
+  readonly pageSize = 50;
+  readonly strategy = signal('');
+  readonly tookMs = signal(0);
+  private searchTimer = 0;
 
+  // The server already searched, filtered and paged (newest first).
   filtered() {
-    const text = this.query.trim().toLowerCase();
-    return this.transactions().filter((transaction) =>
-      (this.typeFilter() === 'All' || transaction.transactionType === this.typeFilter()) &&
-      (!text || `${transaction.referenceNumber} ${transaction.description}`.toLowerCase().includes(text)));
+    return this.transactions();
+  }
+
+  searchSoon() {
+    window.clearTimeout(this.searchTimer);
+    this.searchTimer = window.setTimeout(() => this.goTo(0), 300);
+  }
+
+  setType(type: string) {
+    this.typeFilter.set(type);
+    this.goTo(0);
+  }
+
+  openTransaction(transaction: BankTransaction) {
+    this.copies.set([]);
+    this.selected.set(transaction);
+  }
+
+  setSource(key: string) {
+    this.source.set(key);
+    this.selected.set(null);
+    this.loadNodes();
+    this.goTo(0);
+  }
+
+  nodeName(key: string) {
+    const node = this.nodes().find((item) => item.key === key);
+    return node ? node.database.replace('DigitalBanking_', '') : key;
+  }
+
+  sourceDatabase() {
+    return this.nodes().find((item) => item.key === this.source())?.database ?? this.source();
+  }
+
+  sourceRole() {
+    const node = this.nodes().find((item) => item.key === this.source());
+    return node ? (node.status === 'online' ? node.role : node.status) : '';
+  }
+
+  // Looks the transaction up by reference on every province node, primary and replica.
+  checkNodes(transaction: BankTransaction) {
+    this.checking.set(true);
+    this.copies.set([]);
+    this.ops.databases().subscribe({
+      next: (databases) => {
+        const regional = databases.filter((db) => db.kind === 'regional');
+        this.nodes.set(regional);
+        if (regional.length === 0) {
+          this.checking.set(false);
+          return;
+        }
+
+        let pending = regional.length;
+        const results: { key: string; role: string; state: 'found' | 'missing' | 'down' }[] = [];
+        const done = () => {
+          if (--pending === 0) {
+            this.copies.set(regional.map((db) => results.find((item) => item.key === db.key)!));
+            this.checking.set(false);
+          }
+        };
+        for (const db of regional) {
+          const role = db.status === 'online' ? db.role : db.status;
+          this.ops.table(db.key, 'txn.Transactions', { page: 0, size: 1, column: 'ReferenceNumber', value: transaction.referenceNumber }).subscribe({
+            next: (result) => { results.push({ key: db.key, role, state: result.totalRows > 0 ? 'found' : 'missing' }); done(); },
+            error: () => { results.push({ key: db.key, role, state: 'down' }); done(); }
+          });
+        }
+      },
+      error: () => this.checking.set(false)
+    });
+  }
+
+  private loadNodes() {
+    this.ops.databases().subscribe({ next: (databases) => this.nodes.set(databases.filter((db) => db.kind === 'regional')) });
+  }
+
+  // Reads the ledger table of one database node, newest first.
+  private loadFromNode(page: number) {
+    const reference = this.query.trim();
+    const type = this.typeFilter() === 'All' ? '' : this.typeFilter();
+    const accountId = this.searchedAccountId();
+    const filter = accountId ? { column: 'AccountId', value: accountId }
+      : reference ? { column: 'ReferenceNumber', value: reference }
+      : type ? { column: 'TransactionType', value: type } : {};
+    this.ops.table(this.source(), 'txn.Transactions', { page, size: this.pageSize, sort: 'CreatedAtUtc', desc: true, ...filter }).subscribe({
+      next: (result) => {
+        const cell = (row: unknown[], name: string) => row[result.columns.findIndex((column) => column.name === name)];
+        this.transactions.set(result.rows.map((row) => ({
+          id: String(cell(row, 'Id')),
+          accountId: String(cell(row, 'AccountId') ?? ''),
+          counterpartyAccountId: (cell(row, 'CounterpartyAccountId') as string | null) ?? undefined,
+          transactionType: String(cell(row, 'TransactionType') ?? ''),
+          amount: Number(cell(row, 'Amount') ?? 0),
+          status: String(cell(row, 'Status') ?? ''),
+          referenceNumber: String(cell(row, 'ReferenceNumber') ?? ''),
+          description: String(cell(row, 'Description') ?? ''),
+          createdAtUtc: String(cell(row, 'CreatedAtUtc') ?? '')
+        }) as unknown as BankTransaction));
+        this.total.set(result.totalRows);
+        this.strategy.set('Direct read from ' + result.database);
+        this.tookMs.set(result.tookMs);
+        this.sourceError.set('');
+      },
+      error: (error) => {
+        this.transactions.set([]);
+        this.total.set(0);
+        this.sourceError.set(readErrorMessage(error, 'this database is down.'));
+      }
+    });
+  }
+
+  goTo(page: number) {
+    this.page.set(page);
+    if (this.source()) {
+      this.loadFromNode(page);
+      return;
+    }
+
+    const accountId = this.searchedAccountId();
+    this.banking.searchLedger(accountId ? '' : this.query.trim(), this.typeFilter() === 'All' ? '' : this.typeFilter(), page, this.pageSize, accountId).subscribe({
+      next: (result) => {
+        this.transactions.set(result.items);
+        this.strategy.set(result.strategy ?? '');
+        this.tookMs.set(result.tookMs ?? 0);
+        this.total.set(result.total);
+      },
+      error: () => undefined
+    });
   }
 
   totalIn() {
@@ -612,10 +975,9 @@ export class BankTransactionsPage implements OnInit {
   }
 
   ngOnInit() {
-    this.banking.getAdminTransactions().subscribe({
-      next: (items) => this.transactions.set([...items].sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc))),
-      error: () => undefined
-    });
+    this.loadNodes();
+    this.loadAccountNumbers();
+    this.goTo(0);
   }
 }
 
@@ -640,7 +1002,7 @@ export class BankTransactionsPage implements OnInit {
         </select>
       </div>
 
-      <div class="with-drawer" [class.open]="!!selected()">
+      <div>
         <section class="panel">
           <div class="table-wrap">
             <table class="ops-table">
@@ -661,14 +1023,15 @@ export class BankTransactionsPage implements OnInit {
           </div>
         </section>
         @if (selected(); as log) {
-          <aside class="panel drawer">
+          <div class="ops-dialog-backdrop" (click)="selected.set(null)"></div>
+          <div class="ops-dialog ops-ui txn-dialog" role="dialog">
             <div class="panel-head">
               <h2>{{ pretty(log.eventType) }}</h2>
               <button type="button" class="ops-icon-btn" (click)="selected.set(null)" aria-label="Close"><app-icon name="close" /></button>
             </div>
             <p class="muted small">{{ when(log.occurredAtUtc) }} · actor {{ log.actorUserId || 'system' }}</p>
             <pre class="json">{{ full(log.payload) }}</pre>
-          </aside>
+          </div>
         }
       </div>
     </div>

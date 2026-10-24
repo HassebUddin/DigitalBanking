@@ -46,6 +46,10 @@ public sealed class DbNode
 
 public sealed class RegionCluster
 {
+    // "node:epoch" last written to ops.RegionPrimaries (what the services route by). If that write failed,
+    // e.g. the central database was restarting during a failover, the lease loop writes it again.
+    public string? PublishedPrimary { get; set; }
+
     public required Province Province { get; init; }
     public required string Slug { get; init; }
     public required DbNode[] Nodes { get; init; }
@@ -1113,10 +1117,29 @@ public sealed class RegionalDataPlane(
                         }
 
                         node.LeaseRenewedUtc = DateTime.UtcNow;
+
+                        // Keep the services' routing in step with the coordinator (a failed write is retried here).
+                        if (cluster.PublishedPrimary != $"{node.Name}:{cluster.Epoch}")
+                        {
+                            try
+                            {
+                                await SaveStateAsync(cluster, cancellationToken);
+                                logger.LogInformation("Services now route {Region} to {Node} (epoch {Epoch}).", cluster.Slug, node.Name, cluster.Epoch);
+                            }
+                            catch (Exception exception) when (exception is not OperationCanceledException)
+                            {
+                                logger.LogWarning("Could not publish the {Region} primary yet: {Message}", cluster.Slug, exception.Message);
+                            }
+                        }
                     }
                     else
                     {
                         events.Critical("database", node.Name, $"{node.Name} refused lease epoch {cluster.Epoch}: it has seen a newer epoch.");
+
+                        // Our epoch is stale (e.g. a failover happened while the central database could not record it,
+                        // and the coordinator restarted from the old value). Move past it; the next renewal succeeds
+                        // and the new epoch is published to the services.
+                        cluster.Epoch++;
                     }
                 }
             }
@@ -1235,6 +1258,7 @@ public sealed class RegionalDataPlane(
         command.Parameters.AddWithValue("@database", primary.Database);
         command.Parameters.AddWithValue("@epoch", cluster.Epoch);
         await command.ExecuteNonQueryAsync(cancellationToken);
+        cluster.PublishedPrimary = $"{primary.Name}:{cluster.Epoch}";
     }
 
     private async Task<Dictionary<string, (string Node, long Epoch)>> LoadTopologyAsync(CancellationToken cancellationToken)

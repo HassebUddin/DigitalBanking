@@ -38,6 +38,8 @@ public sealed class TransactionResponse
 public sealed class TransactionSearchRequest
 {
     public string? SearchText { get; set; }
+    // Activity of one account: what it sent and what it received.
+    public Guid? AccountId { get; set; }
     public decimal? MinimumAmount { get; set; }
     public decimal? MaximumAmount { get; set; }
     public string? TransactionType { get; set; }

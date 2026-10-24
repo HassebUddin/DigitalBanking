@@ -20,11 +20,70 @@ public sealed class CustomerRepository(RegionalDb<CustomerDbContext> db) : ICust
 
     public async Task<IReadOnlyList<CustomerProfile>> GetCustomersAsync(CancellationToken cancellationToken)
     {
-        // Bulk loading can put millions of customers in a province: staff lists show the newest 500;
-        // the admin's Regions page searches all of them in SQL.
-        const int newest = 500;
-        var customers = await db.AllAsync(context => context.Customers.OrderByDescending(customer => customer.CreatedAtUtc).Take(newest).ToListAsync(cancellationToken));
+        // Customers who registered in the app (names on account requests, staff people list, overview). Bulk-loaded
+        // customers (millions possible) are left out here; the paged search-customers list includes everyone.
+        const int newest = 2000;
+        var customers = await db.AllAsync(context => context.Customers
+            .Where(customer => !customer.Email.EndsWith("@bulk.digitalbank.local"))
+            .OrderByDescending(customer => customer.CreatedAtUtc).Take(newest).ToListAsync(cancellationToken));
         return customers.OrderByDescending(customer => customer.CreatedAtUtc).Take(newest).ToList();
+    }
+
+    // Picks the search the indexes can answer fastest: CNIC, phone and email are prefix seeks on their index;
+    // anything else is a name search (a scan; full-text search such as Elasticsearch is planned for that).
+    public static (string Kind, string Text, string Strategy) PlanSearch(string? search)
+    {
+        var text = search?.Trim() ?? string.Empty;
+        if (text.Length == 0) return ("none", text, "Newest customers (index on created date)");
+        if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d{5}(-\d{0,7}(-\d?)?|\d{0,8})$"))
+        {
+            // 4210112345671 -> 42101-1234567-1, the stored format.
+            var digits = text.Replace("-", string.Empty);
+            var formatted = digits.Length <= 5 ? digits : digits.Length <= 12 ? $"{digits[..5]}-{digits[5..]}" : $"{digits[..5]}-{digits[5..12]}-{digits[12..]}";
+            return ("cnic", formatted, "Index seek on CNIC");
+        }
+
+        if (System.Text.RegularExpressions.Regex.IsMatch(text, @"^03\d{0,2}-?\d{0,7}$"))
+        {
+            // 03001234567 -> 0300-1234567, the stored format.
+            var digits = text.Replace("-", string.Empty);
+            return ("phone", digits.Length <= 4 ? digits : $"{digits[..4]}-{digits[4..]}", "Index seek on phone");
+        }
+
+        return text.Contains('@')
+            ? ("email", text, "Index seek on email")
+            : ("name", text, "Name search (scan)");
+    }
+
+    public async Task<(List<CustomerProfile> Items, long Total, string Strategy)> SearchCustomersAsync(string? search, string? kyc, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var (kind, text, strategy) = PlanSearch(search);
+        var verified = string.Equals(kyc, "verified", StringComparison.OrdinalIgnoreCase);
+        var pending = string.Equals(kyc, "pending", StringComparison.OrdinalIgnoreCase);
+        var (items, total) = await db.PageAsync(context =>
+        {
+            var query = context.Customers.AsNoTracking();
+            query = kind switch
+            {
+                "cnic" => query.Where(customer => customer.NationalId.StartsWith(text)),
+                "phone" => query.Where(customer => customer.PhoneNumber.StartsWith(text)),
+                "email" => query.Where(customer => customer.Email.StartsWith(text)),
+                "name" => query.Where(customer => customer.FullName.Contains(text)),
+                _ => query
+            };
+
+            if (verified)
+            {
+                query = query.Where(customer => customer.KycStatus == "Verified");
+            }
+            else if (pending)
+            {
+                query = query.Where(customer => customer.KycStatus != "Verified");
+            }
+
+            return query.OrderByDescending(customer => customer.CreatedAtUtc);
+        }, customer => customer.CreatedAtUtc, page, pageSize, cancellationToken);
+        return (items, total, strategy);
     }
 
     public Task<bool> CustomerExistsByUserIdAsync(Guid userId, CancellationToken cancellationToken)

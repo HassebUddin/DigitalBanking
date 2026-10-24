@@ -1,5 +1,6 @@
 using DigitalBanking.BuildingBlocks.Authentication;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.Transaction.Api.Application;
 using DigitalBanking.Transaction.Api.Contracts;
 using Microsoft.AspNetCore.Authorization;
@@ -32,6 +33,15 @@ public sealed class TransactionsController(TransactionService transactionService
         if (request.Amount <= 0) throw new ValidationException("Amount must be greater than zero.");
         if (string.IsNullOrWhiteSpace(request.DestinationAccountNumber)) throw new ValidationException("Destination account number is required.");
         return Ok(await transactionService.TransferTransactionAsync(currentUser.UserId, currentUser.IsAdmin, request, cancellationToken));
+    }
+
+    // Staff ledger with paging: search (reference, description, amount) and type filter over every province, newest first.
+    [Authorize(Roles = "Admin,InternalEmployee,ExternalEmployee")]
+    [HttpGet("search-transactions")]
+    public async Task<ActionResult<PagedResult<TransactionResponse>>> SearchTransactions([FromQuery] string? search, [FromQuery] string? transactionType, [FromQuery] Guid? accountId, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken cancellationToken)
+    {
+        var request = new TransactionSearchRequest { SearchText = search, TransactionType = transactionType, AccountId = accountId };
+        return Ok(await transactionService.SearchTransactionsAsync(request, page, pageSize, cancellationToken));
     }
 
     [HttpGet("get-transactions")]

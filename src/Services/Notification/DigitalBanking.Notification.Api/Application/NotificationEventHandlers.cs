@@ -36,7 +36,8 @@ public abstract class NotificationEventHandler<TEvent>(RegionalDb<NotificationDb
             HandleEvent(integrationEvent);
             await notificationService.FlushAsync(cancellationToken);
             InboxGuard.MarkProcessed(inbox, integrationEvent.EventId);
-            await db.SaveChangesAsync(cancellationToken);
+            // Inbox last: if e.g. the receiver's province fails to save, the event is retried, not lost.
+            await db.SaveChangesAsync(cancellationToken, saveLast: BankRegions.Default);
         }
         catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
         {

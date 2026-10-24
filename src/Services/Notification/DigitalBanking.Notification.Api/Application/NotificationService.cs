@@ -17,7 +17,7 @@ public sealed class NotificationService(RegionalDb<NotificationDbContext> db)
     {
         var dbContext = await db.ForUserAsync(userId, cancellationToken);
         return await dbContext.Notifications
-            .Where(notification => notification.UserId == userId)
+            .Where(notification => notification.UserId == userId && notification.Channel == NotificationChannels.InApp)
             .OrderByDescending(notification => notification.CreatedAtUtc)
             .Take(100)
             .ToListAsync(cancellationToken);
@@ -62,7 +62,8 @@ public sealed class NotificationService(RegionalDb<NotificationDbContext> db)
 
     public async Task FlushAsync(CancellationToken cancellationToken)
     {
-        var channels = new[] { NotificationChannels.InApp, NotificationChannels.Email, NotificationChannels.Sms };
+        // One record per notification (shown in the app). Email/SMS copies made every alert appear three times.
+        var channels = new[] { NotificationChannels.InApp };
         foreach (var (userId, title, body) in queued)
         {
             var dbContext = await db.ForUserRegionAsync(userId, cancellationToken);

@@ -108,6 +108,34 @@ public sealed class TransactionRepository(RegionalDb<TransactionDbContext> db, S
         return transactions.OrderByDescending(transaction => transaction.CreatedAtUtc).ToList();
     }
 
+    public async Task<(List<BankTransaction> Items, long Total, string Strategy)> SearchTransactionsAsync(TransactionSearchRequest request, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        // A reference (TXN...) is a prefix seek on its unique index; other text scans description and amount.
+        var text = request.SearchText?.Trim() ?? string.Empty;
+        var byReference = text.StartsWith("TXN", StringComparison.OrdinalIgnoreCase);
+        var reference = text.ToUpperInvariant();
+        var accountId = request.AccountId;
+        var strategy = accountId is not null ? "Account activity (sent + received)"
+            : text.Length == 0 ? "Newest transactions (index on date)" : byReference ? "Index seek on reference" : "Description / amount search (scan)";
+        var filters = new TransactionSearchRequest { SearchText = byReference ? null : request.SearchText, TransactionType = request.TransactionType };
+        var (items, total) = await db.PageAsync(context =>
+        {
+            var query = context.Transactions.AsNoTracking();
+            if (accountId is not null)
+            {
+                query = query.Where(transaction => transaction.AccountId == accountId || transaction.CounterpartyAccountId == accountId);
+            }
+
+            if (byReference)
+            {
+                query = query.Where(transaction => transaction.ReferenceNumber.StartsWith(reference));
+            }
+
+            return Search(query, filters);
+        }, transaction => transaction.CreatedAtUtc, page, pageSize, cancellationToken);
+        return (items, total, strategy);
+    }
+
     // Filters and sorting shared by the database query and the merge of several provinces.
     private static IQueryable<BankTransaction> Search(IQueryable<BankTransaction> query, TransactionSearchRequest request)
     {

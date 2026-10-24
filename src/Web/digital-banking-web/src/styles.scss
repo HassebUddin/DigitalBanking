@@ -2599,3 +2599,35 @@ button.slim {
   color: var(--teal);
 }
 .thread-empty-icon app-icon, .thread-empty-icon svg { display: block; width: 28px; height: 28px; }
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.18));
+}
+
+.pager-info { font-size: 0.85rem; opacity: 0.75; }
+
+.search-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.search-tip { opacity: 0.85; }
+
+.profile-section-title { margin: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.95rem; color: var(--ink); }
+.profile-section-title small { color: var(--muted); font-size: 0.72rem; font-weight: 500; }
+.profile-locked { margin-top: 0.9rem; gap: 0; }
+.profile-locked .profile-section-title { margin-bottom: 0.4rem; }
+.locked-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 0; border-top: 1px solid var(--line); }
+.locked-label { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+.locked-label app-icon { width: 15px; height: 15px; display: inline-block; }
+.locked-label app-icon svg { display: block; width: 100%; height: 100%; }
+.locked-value { color: var(--ink); font-weight: 600; font-size: 0.88rem; text-align: right; word-break: break-all; }
+.locked-value.empty { color: var(--muted); font-weight: 500; font-style: italic; }

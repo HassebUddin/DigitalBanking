@@ -24,7 +24,7 @@ interface HistoryGroup {
 
       <label class="history-search">
         <app-icon name="search" />
-        <input name="deskHistorySearch" [(ngModel)]="searchText" placeholder="Search amount, ref or type" />
+        <input name="deskHistorySearch" [(ngModel)]="searchText" placeholder="Search reference, amount, type (reference indexed for faster search)" />
         @if (searchText) {
           <button class="ghost-clear" type="button" (click)="searchText = ''">Clear</button>
         }

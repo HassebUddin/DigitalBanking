@@ -23,7 +23,7 @@ import { holdSkeleton } from '../ui/hold-skeleton';
 
       <label class="history-search">
         <app-icon name="search" />
-        <input name="peopleSearch" [(ngModel)]="searchText" placeholder="Search name, phone or email" />
+        <input name="peopleSearch" [(ngModel)]="searchText" placeholder="Search name, CNIC, phone, email (CNIC, phone &amp; email indexed for faster search)" />
         @if (searchText) {
           <button class="ghost-clear" type="button" (click)="searchText = ''">Clear</button>
         }

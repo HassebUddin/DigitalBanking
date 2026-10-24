@@ -123,6 +123,12 @@ export class AuthService {
     return this.http.post(`${this.apiUrl}/api/auth/reset-password`, { email, resetCode, newPassword });
   }
 
+  // After the customer renames themselves in their profile.
+  setFullName(fullName: string) {
+    localStorage.setItem(fullNameKey, fullName);
+    this.fullName.set(fullName);
+  }
+
   private storeSession(response: AuthResponse) {
     localStorage.setItem(accessTokenKey, response.accessToken);
     localStorage.setItem(refreshTokenKey, response.refreshToken);

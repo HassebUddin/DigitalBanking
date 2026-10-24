@@ -884,7 +884,7 @@
 
 // Logs page
 .ops-ui .logs-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; padding: 0.7rem 0.8rem; }
-.ops-ui .logs-search { position: relative; flex: 1 1 320px; }
+.ops-ui .logs-search { position: relative; flex: 1 1 480px; }
 .ops-ui .logs-search app-icon { position: absolute; top: 50%; left: 0.75rem; width: 16px; height: 16px; color: var(--ops-muted); transform: translateY(-50%); }
 .ops-ui .logs-search input { padding-left: 2.3rem; }
 .ops-ui .segmented { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--ops-bg); }
@@ -1379,3 +1379,21 @@
 @keyframes opsFade {
   from { opacity: 0; }
 }
+.ops-ui .login-box { margin-top: 1rem; padding: 0.85rem; border: 1px solid var(--ops-line); border-radius: 12px; display: grid; gap: 0.5rem; }
+.ops-ui .login-box h3 { margin: 0; font-size: 0.85rem; }
+.ops-ui .login-line { display: flex; align-items: center; gap: 0.5rem; }
+.ops-ui .login-key { width: 4.8rem; flex: none; color: var(--ops-muted); font-size: 0.78rem; font-weight: 600; }
+.ops-ui .login-val { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.82rem; }
+.ops-ui .login-note { margin: 0; font-size: 0.74rem; }
+.ops-ui .pw-cell { white-space: nowrap; }
+.ops-ui .pw-cell > * { vertical-align: middle; }
+.ops-ui .pw-cell .ops-icon-btn { margin-left: 0.3rem; width: 26px; height: 26px; padding: 5px; }
+.ops-ui .source-banner { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; padding: 0.7rem 0.9rem; border: 1px solid rgba(46, 204, 160, 0.35); border-radius: 12px; background: rgba(46, 204, 160, 0.08); font-size: 0.85rem; }
+.ops-ui .source-banner.bad { border-color: rgba(240, 90, 90, 0.4); background: rgba(240, 90, 90, 0.08); }
+.ops-ui .source-banner app-icon { width: 16px; height: 16px; flex: none; }
+.ops-ui .copy-mark { width: 1.4rem; height: 1.4rem; flex: none; display: grid; place-items: center; border-radius: 50%; font-weight: 700; font-size: 0.8rem; }
+.ops-ui .copy-mark[data-state="found"] { background: rgba(46, 204, 160, 0.18); color: #2ecca0; }
+.ops-ui .copy-mark[data-state="missing"] { background: rgba(240, 90, 90, 0.18); color: #f05a5a; }
+.ops-ui .copy-mark[data-state="down"] { background: rgba(240, 180, 60, 0.18); color: #f0b43c; }
+.ops-dialog.txn-dialog { max-height: calc(100vh - 2rem); overflow-y: auto; }
+.ops-dialog.txn-dialog .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }

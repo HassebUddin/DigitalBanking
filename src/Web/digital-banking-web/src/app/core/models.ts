@@ -98,3 +98,14 @@ export interface AuditLog {
   payload: string;
   occurredAtUtc: string;
 }
+
+// One page of a server-paged list.
+export interface Paged<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  // How the server ran the search, e.g. "Index seek on CNIC", and how long it took.
+  strategy?: string;
+  tookMs?: number;
+}

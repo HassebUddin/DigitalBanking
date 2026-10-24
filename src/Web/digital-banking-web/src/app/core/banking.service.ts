@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { AuthService } from './auth.service';
 import {
+  Paged,
   AuditLog,
   AccountApplication,
   BankAccount,
@@ -25,6 +26,16 @@ export class BankingService {
 
   getProfile() {
     return this.http.get<CustomerProfile>(`${this.apiUrl}/api/customers/get-or-create-customer-profile`);
+  }
+
+  // Admin: turns on app login for a bulk-loaded demo customer and returns the credentials.
+  enableDemoLogin(customer: CustomerProfile) {
+    return this.http.post<{ email: string; password: string; created: boolean }>(`${this.apiUrl}/api/users/enable-demo-login`, {
+      userId: customer.userId,
+      email: customer.email,
+      fullName: customer.fullName,
+      region: customer.region ?? ''
+    });
   }
 
   updateProfile(payload: { fullName: string; phoneNumber: string; address: string }) {
@@ -123,6 +134,23 @@ export class BankingService {
 
   getAdminDashboard() {
     return this.http.get<DashboardSummary>(`${this.apiUrl}/api/admin/dashboard`);
+  }
+
+  // Server-paged staff lists: search and filters run in SQL over every province.
+  searchCustomers(search: string, kyc: string, page: number, pageSize = 50) {
+    const params = new HttpParams().set('search', search).set('kyc', kyc).set('page', page).set('pageSize', pageSize);
+    return this.http.get<Paged<CustomerProfile>>(`${this.apiUrl}/api/customers/search-customers`, { params });
+  }
+
+  searchAccounts(search: string, status: string, page: number, pageSize = 50) {
+    const params = new HttpParams().set('search', search).set('status', status).set('page', page).set('pageSize', pageSize);
+    return this.http.get<Paged<BankAccount>>(`${this.apiUrl}/api/accounts/search-accounts`, { params });
+  }
+
+  searchLedger(search: string, transactionType: string, page: number, pageSize = 50, accountId = '') {
+    let params = new HttpParams().set('search', search).set('transactionType', transactionType).set('page', page).set('pageSize', pageSize);
+    if (accountId) params = params.set('accountId', accountId);
+    return this.http.get<Paged<BankTransaction>>(`${this.apiUrl}/api/transactions/search-transactions`, { params });
   }
 
   getAdminCustomers() {

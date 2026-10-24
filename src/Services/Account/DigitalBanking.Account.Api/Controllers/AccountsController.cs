@@ -3,6 +3,7 @@ using DigitalBanking.Account.Api.Contracts;
 using DigitalBanking.Account.Api.Domain;
 using DigitalBanking.BuildingBlocks.Authentication;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.BuildingBlocks.Messaging;
 using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Contracts.Events;
@@ -112,6 +113,14 @@ public sealed class AccountsController(
     public async Task<ActionResult<IReadOnlyList<AccountResponse>>> GetAccounts(CancellationToken cancellationToken)
     {
         return Ok(await accountService.GetAccountsAsync(currentUser.UserId, currentUser.CanViewBankRecords, cancellationToken));
+    }
+
+    // Staff list with paging: search (account number, type) and status filter over every province.
+    [Authorize(Roles = "Admin,InternalEmployee,ExternalEmployee")]
+    [HttpGet("search-accounts")]
+    public async Task<ActionResult<PagedResult<AccountResponse>>> SearchAccounts([FromQuery] string? search, [FromQuery] string? status, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken cancellationToken)
+    {
+        return Ok(await accountService.SearchAccountsAsync(search, status, page, pageSize, cancellationToken));
     }
 
     [Authorize]

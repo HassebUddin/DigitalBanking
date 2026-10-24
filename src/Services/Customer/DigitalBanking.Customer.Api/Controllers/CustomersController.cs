@@ -1,5 +1,6 @@
 using DigitalBanking.BuildingBlocks.Authentication;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.BuildingBlocks.Security;
 using DigitalBanking.Customer.Api.Application;
 using DigitalBanking.Customer.Api.Contracts;
@@ -53,6 +54,14 @@ public sealed class CustomersController(CustomerService customerService, Current
     public async Task<ActionResult<IReadOnlyList<CustomerResponse>>> GetCustomers(CancellationToken cancellationToken)
     {
         return Ok(await customerService.GetCustomersAsync(cancellationToken));
+    }
+
+    // Staff list with paging: search (name, email, phone, CNIC) and KYC filter over every province.
+    [Authorize(Roles = "Admin,InternalEmployee,ExternalEmployee")]
+    [HttpGet("search-customers")]
+    public async Task<ActionResult<PagedResult<CustomerResponse>>> SearchCustomers([FromQuery] string? search, [FromQuery] string? kyc, [FromQuery] int page, [FromQuery] int pageSize, CancellationToken cancellationToken)
+    {
+        return Ok(await customerService.SearchCustomersAsync(search, kyc, page, pageSize, cancellationToken));
     }
 
     [HttpGet("get-customer-by-id/{customerId:guid}")]

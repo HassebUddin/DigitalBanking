@@ -86,3 +86,19 @@ public sealed class ForgotPasswordResponse
     public string Message { get; set; } = string.Empty;
     public string ResetCode { get; set; } = string.Empty;
 }
+
+// Admin turns on app login for a bulk-loaded (demo) customer, whose profile has no identity user yet.
+public sealed class EnableDemoLoginRequest
+{
+    public Guid UserId { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string Region { get; set; } = string.Empty;
+}
+
+public sealed class DemoLoginResponse
+{
+    public string Email { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+    public bool Created { get; set; }
+}

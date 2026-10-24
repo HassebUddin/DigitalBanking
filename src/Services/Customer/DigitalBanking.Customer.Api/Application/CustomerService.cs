@@ -1,4 +1,5 @@
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.Customer.Api.Contracts;
 using DigitalBanking.Customer.Api.Domain;
 using DigitalBanking.Customer.Api.Repository;
@@ -21,6 +22,15 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
     {
         var customer = await customerRepository.GetCustomerByIdAsync(customerId, cancellationToken) ?? throw new NotFoundException("Customer profile was not found.");
         return new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc };
+    }
+
+    public async Task<PagedResult<CustomerResponse>> SearchCustomersAsync(string? search, string? kyc, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        (page, pageSize) = PagedResult<CustomerResponse>.Normalize(page, pageSize);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var (customers, total, strategy) = await customerRepository.SearchCustomersAsync(search, kyc, page, pageSize, cancellationToken);
+        var items = customers.Select(customer => new CustomerResponse { Id = customer.Id, UserId = customer.UserId, FullName = customer.FullName, Email = customer.Email, NationalId = customer.NationalId, PhoneNumber = customer.PhoneNumber, Address = customer.Address, KycStatus = customer.KycStatus, Region = customer.Region, CreatedAtUtc = customer.CreatedAtUtc }).ToList();
+        return new PagedResult<CustomerResponse>(items, total, page, pageSize) { Strategy = strategy, TookMs = Math.Round(watch.Elapsed.TotalMilliseconds, 1) };
     }
 
     public async Task<IReadOnlyList<CustomerResponse>> GetCustomersAsync(CancellationToken cancellationToken)
@@ -49,6 +59,12 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
     public async Task<CustomerResponse> UpdateKycStatusAsync(Guid customerId, string status, CancellationToken cancellationToken)
     {
         var customer = await customerRepository.GetCustomerByIdAsync(customerId, cancellationToken) ?? throw new NotFoundException("Customer profile was not found.");
+        // KYC is an identity check: without a real CNIC on file (auto-created profiles get a TMP- placeholder) there is nothing to verify.
+        if (status == "Verified" && (string.IsNullOrWhiteSpace(customer.NationalId) || customer.NationalId.StartsWith("TMP-", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new ValidationException("CNIC is missing, so KYC cannot be verified. Add the customer's CNIC first.");
+        }
+
         customer.KycStatus = status;
         customer.UpdatedAtUtc = DateTime.UtcNow;
         await customerRepository.SaveCustomerChangesAsync(cancellationToken);

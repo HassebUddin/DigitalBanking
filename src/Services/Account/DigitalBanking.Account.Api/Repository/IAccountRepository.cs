@@ -8,6 +8,7 @@ public interface IAccountRepository
     Task<BankAccount?> GetAccountByIdAsync(Guid accountId, CancellationToken cancellationToken);
     Task<BankAccount?> GetAccountByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken);
     Task<IReadOnlyList<BankAccount>> GetAccountsAsync(Guid userId, bool isAdmin, CancellationToken cancellationToken);
+    Task<(List<BankAccount> Items, long Total, string Strategy)> SearchAccountsAsync(string? search, string? status, int page, int pageSize, CancellationToken cancellationToken);
     Task<string> RegionOfUserAsync(Guid userId, CancellationToken cancellationToken);
     Task<bool> TryReserveAccountNumberAsync(string accountNumber, Guid accountId, string region, CancellationToken cancellationToken);
     Task AddAccountAsync(BankAccount account, CancellationToken cancellationToken);

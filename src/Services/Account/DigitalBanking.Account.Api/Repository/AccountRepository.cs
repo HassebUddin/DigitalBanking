@@ -43,6 +43,34 @@ public sealed class AccountRepository(RegionalDb<AccountDbContext> db, AccountDi
         return accounts.OrderByDescending(account => account.CreatedAtUtc).ToList();
     }
 
+    public async Task<(List<BankAccount> Items, long Total, string Strategy)> SearchAccountsAsync(string? search, string? status, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var text = search?.Trim() ?? string.Empty;
+        // Digits: a prefix seek on the unique account-number index. Anything else filters by type.
+        var byNumber = text.Length > 0 && text.All(char.IsDigit);
+        var strategy = text.Length == 0 ? "Newest accounts (index on opened date)" : byNumber ? "Index seek on account number" : "Type search (scan)";
+        var (items, total) = await db.PageAsync(context =>
+        {
+            var query = context.Accounts.AsNoTracking();
+            if (byNumber)
+            {
+                query = query.Where(account => account.AccountNumber.StartsWith(text));
+            }
+            else if (text.Length > 0)
+            {
+                query = query.Where(account => account.AccountType.Contains(text));
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(account => account.Status == status);
+            }
+
+            return query.OrderByDescending(account => account.CreatedAtUtc);
+        }, account => account.CreatedAtUtc, page, pageSize, cancellationToken);
+        return (items, total, strategy);
+    }
+
     public Task<string> RegionOfUserAsync(Guid userId, CancellationToken cancellationToken)
     {
         return users.GetRegionAsync(userId, cancellationToken);

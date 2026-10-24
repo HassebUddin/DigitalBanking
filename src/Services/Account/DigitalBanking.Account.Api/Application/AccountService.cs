@@ -4,6 +4,7 @@ using DigitalBanking.Account.Api.Domain;
 using DigitalBanking.Account.Api.Repository;
 using DigitalBanking.BuildingBlocks.Caching;
 using DigitalBanking.BuildingBlocks.Exceptions;
+using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.BuildingBlocks.Messaging;
 using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Contracts.Events;
@@ -31,6 +32,15 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
         await accountRepository.SaveAccountChangesAsync(cancellationToken);
         await cacheService.SetAsync(BalanceCacheKey(account.Id), account.Balance, TimeSpan.FromMinutes(5), cancellationToken);
         return new AccountResponse { Id = account.Id, CustomerId = account.CustomerId, UserId = account.UserId, AccountNumber = account.AccountNumber, AccountType = account.AccountType, Balance = account.Balance, Currency = account.Currency, Status = account.Status, CreatedAtUtc = account.CreatedAtUtc };
+    }
+
+    public async Task<PagedResult<AccountResponse>> SearchAccountsAsync(string? search, string? status, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        (page, pageSize) = PagedResult<AccountResponse>.Normalize(page, pageSize);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var (accounts, total, strategy) = await accountRepository.SearchAccountsAsync(search, status, page, pageSize, cancellationToken);
+        var items = accounts.Select(account => new AccountResponse { Id = account.Id, CustomerId = account.CustomerId, UserId = account.UserId, AccountNumber = account.AccountNumber, AccountType = account.AccountType, Balance = account.Balance, Currency = account.Currency, Status = account.Status, CreatedAtUtc = account.CreatedAtUtc }).ToList();
+        return new PagedResult<AccountResponse>(items, total, page, pageSize) { Strategy = strategy, TookMs = Math.Round(watch.Elapsed.TotalMilliseconds, 1) };
     }
 
     public async Task<IReadOnlyList<AccountResponse>> GetAccountsAsync(Guid userId, bool isAdmin, CancellationToken cancellationToken)

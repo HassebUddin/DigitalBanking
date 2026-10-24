@@ -19,6 +19,9 @@ public sealed class CustomerDbContext(DbContextOptions<CustomerDbContext> option
             entity.HasKey(customer => customer.Id);
             entity.HasIndex(customer => customer.UserId).IsUnique();
             entity.HasIndex(customer => customer.NationalId).IsUnique();
+            // Phone and email searches are prefix seeks on these indexes (fast at millions of rows).
+            entity.HasIndex(customer => customer.PhoneNumber);
+            entity.HasIndex(customer => customer.Email);
             entity.Property(customer => customer.FullName).HasMaxLength(200).IsRequired();
             entity.Property(customer => customer.Email).HasMaxLength(256).IsRequired();
             entity.Property(customer => customer.NationalId).HasMaxLength(32).IsRequired();
