@@ -33,7 +33,7 @@ public sealed class CoordinatorLeadership(IConfiguration configuration, IHttpCli
 
     private readonly string[] endpoints = (configuration["Consensus:Etcd:Endpoints"] ?? string.Empty)
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    private readonly int leaseTtlSeconds = configuration.GetValue("Consensus:Etcd:LeaseTtlSeconds", 5);
+    private readonly int leaseTtlSeconds = configuration.GetValue("Consensus:Etcd:LeaseTtlSeconds", 10);
     private readonly object gate = new();
     private readonly LinkedList<string> history = new();
 
