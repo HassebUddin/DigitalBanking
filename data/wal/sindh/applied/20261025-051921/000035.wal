@@ -1,0 +1,95 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 599,
+  "ToVersion": 601,
+  "CapturedAtUtc": "2026-10-25T00:16:12.625169Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "185f726a-6b40-4cf1-9ea7-1accc0a3f4a0",
+          "NotificationSentEvent",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "{\u0022notificationId\u0022:\u00228c2e0e61-56fc-4b48-859b-f96fa4af4831\u0022,\u0022userId\u0022:\u0022634e719c-3e0b-4fd1-bf48-8ef4d7d642cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer failed\u0022,\u0022body\u0022:\u0022Your transfer of PKR 13.00 could not be completed. No money was taken. Reference TXN2026102500135652311251416.\u0022,\u0022eventId\u0022:\u0022db1451c0-43a5-438d-ba28-2d543422ee1d\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:16:11.0018953Z\u0022}",
+          "2026-10-25T00:16:11.0018953"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "db1451c0-43a5-438d-ba28-2d543422ee1d",
+          "NotificationSentEvent",
+          "2026-10-25T00:16:12.5359221",
+          "2026-10-25T00:16:12.5360119"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "db1451c0-43a5-438d-ba28-2d543422ee1d",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u00228c2e0e61-56fc-4b48-859b-f96fa4af4831\u0022,\u0022userId\u0022:\u0022634e719c-3e0b-4fd1-bf48-8ef4d7d642cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer failed\u0022,\u0022body\u0022:\u0022Your transfer of PKR 13.00 could not be completed. No money was taken. Reference TXN2026102500135652311251416.\u0022,\u0022eventId\u0022:\u0022db1451c0-43a5-438d-ba28-2d543422ee1d\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:16:11.0018953Z\u0022}",
+          "2026-10-25T00:16:11.0018953",
+          "2026-10-25T00:16:12.5307162"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 61,
+  "ToVersion": 63,
+  "CapturedAtUtc": "2026-10-24T21:07:05.4383414Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "30ecfb7d-78c7-4f32-ba9b-ba928919c5c4",
+          "NotificationSentEvent",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "{\u0022notificationId\u0022:\u00224021acfb-07d4-45c8-90b6-f69883f39349\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Account opened\u0022,\u0022body\u0022:\u0022Account 109522430162 is ready.\u0022,\u0022eventId\u0022:\u002294d6aa70-69cb-45f1-82de-3f0eb35aac45\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:04.1681088Z\u0022}",
+          "2026-10-24T21:07:04.1681088"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "94d6aa70-69cb-45f1-82de-3f0eb35aac45",
+          "NotificationSentEvent",
+          "2026-10-24T21:07:05.3955692",
+          "2026-10-24T21:07:05.3958114"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "94d6aa70-69cb-45f1-82de-3f0eb35aac45",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u00224021acfb-07d4-45c8-90b6-f69883f39349\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Account opened\u0022,\u0022body\u0022:\u0022Account 109522430162 is ready.\u0022,\u0022eventId\u0022:\u002294d6aa70-69cb-45f1-82de-3f0eb35aac45\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:04.1681088Z\u0022}",
+          "2026-10-24T21:07:04.1681088",
+          "2026-10-24T21:07:05.3852796"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

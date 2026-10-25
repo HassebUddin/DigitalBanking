@@ -1,0 +1,71 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 625,
+  "ToVersion": 626,
+  "CapturedAtUtc": "2026-10-25T00:17:14.3662789Z",
+  "Tables": [
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "7558b14e-8a0c-4edd-b08f-560f1b07fb98",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "InApp",
+          "Transfer sent",
+          "PKR 107.00 was transferred. Reference TXN2026102500012649376705761.",
+          true,
+          "2026-10-25T00:02:01.8536954"
+        ],
+        [
+          "ff83a792-35ba-41a7-9f3b-b8e0534e16c0",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "InApp",
+          "Transfer sent",
+          "PKR 11.00 was transferred. Reference TXN2026102500023260692561381.",
+          true,
+          "2026-10-25T00:03:06.9345099"
+        ],
+        [
+          "f4e26e5f-49eb-49a0-8000-bb74933a4725",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "InApp",
+          "Transfer sent",
+          "PKR 13.00 was transferred. Reference TXN2026102500170118405485656.",
+          true,
+          "2026-10-25T00:17:03.7484748"
+        ],
+        [
+          "8c2e0e61-56fc-4b48-859b-f96fa4af4831",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "InApp",
+          "Transfer failed",
+          "Your transfer of PKR 13.00 could not be completed. No money was taken. Reference TXN2026102500135652311251416.",
+          true,
+          "2026-10-25T00:16:11.0016317"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

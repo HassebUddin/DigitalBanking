@@ -1,0 +1,111 @@
+{
+  "Source": "DigitalBanking_Punjab_A",
+  "FromVersion": 483,
+  "ToVersion": 484,
+  "CapturedAtUtc": "2026-10-25T00:17:03.2608331Z",
+  "Tables": [
+    {
+      "Table": "[account].[Accounts]",
+      "Columns": [
+        "Id",
+        "CustomerId",
+        "UserId",
+        "AccountNumber",
+        "AccountType",
+        "Balance",
+        "Currency",
+        "Status",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "94c5929d-fd98-4c68-8f10-16154e935e19",
+          "a84fc0e1-05d3-4f7c-acfa-958408ba834e",
+          "b4c878b4-2e05-4507-95be-21471cdb2c49",
+          "104176265960",
+          "Savings",
+          1180.00,
+          "PKR",
+          "Active",
+          "2026-10-24T23:25:47.9512234"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[account].[LedgerEntries]",
+      "Columns": [
+        "Id",
+        "JournalId",
+        "IdempotencyKey",
+        "Leg",
+        "LedgerAccount",
+        "AccountId",
+        "Debit",
+        "Credit",
+        "BalanceAfter",
+        "Purpose",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Int32",
+        "System.String",
+        "System.Guid",
+        "System.Decimal",
+        "System.Decimal",
+        "System.Decimal",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "8bd9743a-250b-4a1b-b91f-c4fdf55f376d",
+          "TXN2026102500170118405485656",
+          "TXN2026102500170118405485656:C:94c5929d-fd98-4c68-8f10-16154e935e19",
+          1,
+          "CUST:104176265960",
+          "94c5929d-fd98-4c68-8f10-16154e935e19",
+          0.00,
+          13.00,
+          1180.00,
+          "TransferIn",
+          "2026-10-25T00:17:03.1522539"
+        ],
+        [
+          "f056ab8c-7b20-4af1-960e-d6ad25d80786",
+          "TXN2026102500170118405485656",
+          "TXN2026102500170118405485656:C:94c5929d-fd98-4c68-8f10-16154e935e19",
+          2,
+          "GL:CLEARING",
+          null,
+          13.00,
+          0.00,
+          null,
+          "TransferIn",
+          "2026-10-25T00:17:03.1522539"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "Source": "DigitalBanking_Punjab_A",
+  "FromVersion": 394,
+  "ToVersion": 395,
+  "CapturedAtUtc": "2026-10-25T00:03:07.036908Z",
+  "Tables": [
+    {
+      "Table": "[notify].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "481a8db5-774b-4bd3-bf33-aa6054759eae",
+          "MoneyTransferredEvent",
+          "2026-10-25T00:03:06.9341595",
+          "2026-10-25T00:03:06.9354052"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "3ee0d062-8398-4acf-90be-ab411bd607e1",
+          "b4c878b4-2e05-4507-95be-21471cdb2c49",
+          "InApp",
+          "Transfer received",
+          "PKR 11.00 was credited to your account. Reference TXN2026102500023260692561381.",
+          false,
+          "2026-10-25T00:03:06.9351419"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "a5d6ebd1-ba6a-4559-bf96-1a0784219074",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u00223ee0d062-8398-4acf-90be-ab411bd607e1\u0022,\u0022userId\u0022:\u0022b4c878b4-2e05-4507-95be-21471cdb2c49\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer received\u0022,\u0022body\u0022:\u0022PKR 11.00 was credited to your account. Reference TXN2026102500023260692561381.\u0022,\u0022eventId\u0022:\u0022a5d6ebd1-ba6a-4559-bf96-1a0784219074\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:03:06.9351529Z\u0022}",
+          "2026-10-25T00:03:06.9351529",
+          "2026-10-25T00:03:07.0109959"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

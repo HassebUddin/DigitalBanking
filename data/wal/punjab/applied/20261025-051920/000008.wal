@@ -1,0 +1,65 @@
+{
+  "Source": "DigitalBanking_Punjab_A",
+  "FromVersion": 397,
+  "ToVersion": 398,
+  "CapturedAtUtc": "2026-10-25T00:04:04.9487203Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "448ce5bb-fd3f-4250-ae32-1274de673a76",
+          "UserLoggedInEvent",
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "{\u0022userId\u0022:\u0022aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\u0022,\u0022email\u0022:\u0022admin@digitalbank.local\u0022,\u0022eventId\u0022:\u00223ba89265-4d50-4810-aa9f-8b017c7ed191\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:04:04.6690476Z\u0022}",
+          "2026-10-25T00:04:04.6690476"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "3ba89265-4d50-4810-aa9f-8b017c7ed191",
+          "UserLoggedInEvent",
+          "2026-10-25T00:04:04.7915753",
+          "2026-10-25T00:04:04.7918089"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

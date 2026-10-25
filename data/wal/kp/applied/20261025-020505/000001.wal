@@ -1,0 +1,56 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 47,
+  "ToVersion": 48,
+  "CapturedAtUtc": "2026-10-24T21:04:14.9579122Z",
+  "Tables": [
+    {
+      "Table": "[customer].[Customers]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "FullName",
+        "Email",
+        "NationalId",
+        "PhoneNumber",
+        "Address",
+        "KycStatus",
+        "Region",
+        "CreatedAtUtc",
+        "UpdatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "cb318547-6e61-43c9-8079-9466a821cd03",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "wajaht",
+          "wajaht@gmail.com",
+          "43234-5643567-5",
+          "0323-4553454",
+          "2410 MAHOGANY WAY",
+          "Pending",
+          "kp",
+          "2026-10-24T21:04:14.5843372",
+          "2026-10-24T21:04:14.5843373"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

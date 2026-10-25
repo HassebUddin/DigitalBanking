@@ -1,0 +1,56 @@
+{
+  "Source": "DigitalBanking_Balochistan_A",
+  "FromVersion": 22,
+  "ToVersion": 23,
+  "CapturedAtUtc": "2026-10-24T21:01:14.5516762Z",
+  "Tables": [
+    {
+      "Table": "[customer].[Customers]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "FullName",
+        "Email",
+        "NationalId",
+        "PhoneNumber",
+        "Address",
+        "KycStatus",
+        "Region",
+        "CreatedAtUtc",
+        "UpdatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "7b1b7236-f5e3-487e-a7d6-8c1207b68bda",
+          "ba8d4b6a-cf29-44cd-abca-d89c421a58bf",
+          "haseeb Test",
+          "haseebtest@gmail.com",
+          "42343-4563456-7",
+          "0323-4324345",
+          "2410 MAHOGANY WAY",
+          "Pending",
+          "balochistan",
+          "2026-10-24T21:01:14.3605127",
+          "2026-10-24T21:01:14.3605127"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

@@ -1,0 +1,161 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 621,
+  "ToVersion": 623,
+  "CapturedAtUtc": "2026-10-25T00:17:03.8167132Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "6dbeb516-f36d-401c-b36a-5ce9c2f06a88",
+          "MoneyTransferredEvent",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "{\u0022transactionId\u0022:\u00224dc9d965-ac43-4d61-a627-766165ccb350\u0022,\u0022sourceAccountId\u0022:\u002248ccf57f-ed9f-4540-9e95-e638e00dfa49\u0022,\u0022destinationAccountId\u0022:\u002294c5929d-fd98-4c68-8f10-16154e935e19\u0022,\u0022sourceUserId\u0022:\u0022634e719c-3e0b-4fd1-bf48-8ef4d7d642cb\u0022,\u0022destinationUserId\u0022:\u0022b4c878b4-2e05-4507-95be-21471cdb2c49\u0022,\u0022amount\u0022:13,\u0022referenceNumber\u0022:\u0022TXN2026102500170118405485656\u0022,\u0022eventId\u0022:\u002275a324e7-d70f-4225-80f8-5ba42918bce7\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:17:03.1646717Z\u0022}",
+          "2026-10-25T00:17:03.1646717"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "75a324e7-d70f-4225-80f8-5ba42918bce7",
+          "MoneyTransferredEvent",
+          "2026-10-25T00:17:03.7485596",
+          "2026-10-25T00:17:03.7486616"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "f4e26e5f-49eb-49a0-8000-bb74933a4725",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "InApp",
+          "Transfer sent",
+          "PKR 13.00 was transferred. Reference TXN2026102500170118405485656.",
+          false,
+          "2026-10-25T00:17:03.7484748"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "5d3579d0-f430-4b26-85d8-5703f189bb1f",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u0022f4e26e5f-49eb-49a0-8000-bb74933a4725\u0022,\u0022userId\u0022:\u0022634e719c-3e0b-4fd1-bf48-8ef4d7d642cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer sent\u0022,\u0022body\u0022:\u0022PKR 13.00 was transferred. Reference TXN2026102500170118405485656.\u0022,\u0022eventId\u0022:\u00225d3579d0-f430-4b26-85d8-5703f189bb1f\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:17:03.7488279Z\u0022}",
+          "2026-10-25T00:17:03.7488279",
+          null
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "75a324e7-d70f-4225-80f8-5ba42918bce7",
+          "MoneyTransferredEvent",
+          "{\u0022transactionId\u0022:\u00224dc9d965-ac43-4d61-a627-766165ccb350\u0022,\u0022sourceAccountId\u0022:\u002248ccf57f-ed9f-4540-9e95-e638e00dfa49\u0022,\u0022destinationAccountId\u0022:\u002294c5929d-fd98-4c68-8f10-16154e935e19\u0022,\u0022sourceUserId\u0022:\u0022634e719c-3e0b-4fd1-bf48-8ef4d7d642cb\u0022,\u0022destinationUserId\u0022:\u0022b4c878b4-2e05-4507-95be-21471cdb2c49\u0022,\u0022amount\u0022:13,\u0022referenceNumber\u0022:\u0022TXN2026102500170118405485656\u0022,\u0022eventId\u0022:\u002275a324e7-d70f-4225-80f8-5ba42918bce7\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:17:03.1646717Z\u0022}",
+          "2026-10-25T00:17:03.1646717",
+          "2026-10-25T00:17:03.7420987"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

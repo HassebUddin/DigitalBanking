@@ -1,0 +1,206 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 48,
+  "ToVersion": 51,
+  "CapturedAtUtc": "2026-10-24T21:04:15.1525013Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "9e7ada30-08e1-4ea5-9bf9-6d1fc6272153",
+          "CustomerRegisteredEvent",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "{\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022email\u0022:\u0022wajaht@gmail.com\u0022,\u0022fullName\u0022:\u0022wajaht\u0022,\u0022nationalId\u0022:\u002243234-5643567-5\u0022,\u0022phoneNumber\u0022:\u00220323-4553454\u0022,\u0022address\u0022:\u00222410 MAHOGANY WAY\u0022,\u0022region\u0022:\u0022kp\u0022,\u0022eventId\u0022:\u002204c0c47a-096f-48de-8da9-1e59e8a2b4f3\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:04:14.5391595Z\u0022}",
+          "2026-10-24T21:04:14.5391595"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "04c0c47a-096f-48de-8da9-1e59e8a2b4f3",
+          "CustomerRegisteredEvent",
+          "2026-10-24T21:04:15.0611037",
+          "2026-10-24T21:04:15.0614457"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[customer].[Customers]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "FullName",
+        "Email",
+        "NationalId",
+        "PhoneNumber",
+        "Address",
+        "KycStatus",
+        "Region",
+        "CreatedAtUtc",
+        "UpdatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "cb318547-6e61-43c9-8079-9466a821cd03",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "wajaht",
+          "wajaht@gmail.com",
+          "43234-5643567-5",
+          "0323-4553454",
+          "2410 MAHOGANY WAY",
+          "Pending",
+          "kp",
+          "2026-10-24T21:04:14.5843372",
+          "2026-10-24T21:04:15.0384086"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[customer].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "04c0c47a-096f-48de-8da9-1e59e8a2b4f3",
+          "CustomerRegisteredEvent",
+          "2026-10-24T21:04:15.0274204",
+          "2026-10-24T21:04:15.0630761"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "943aac31-4835-4a87-8cfc-1ac9a5698558",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "InApp",
+          "Welcome to Digital Banking",
+          "Your customer profile is ready. You can now open an account.",
+          false,
+          "2026-10-24T21:04:15.0319316"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "d8e2fb17-a620-4a55-a7a3-dd62f23a75bb",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u0022943aac31-4835-4a87-8cfc-1ac9a5698558\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Welcome to Digital Banking\u0022,\u0022body\u0022:\u0022Your customer profile is ready. You can now open an account.\u0022,\u0022eventId\u0022:\u0022d8e2fb17-a620-4a55-a7a3-dd62f23a75bb\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:04:15.0325086Z\u0022}",
+          "2026-10-24T21:04:15.0325086",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

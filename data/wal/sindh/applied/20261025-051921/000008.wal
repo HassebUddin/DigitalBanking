@@ -1,0 +1,92 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 566,
+  "ToVersion": 567,
+  "CapturedAtUtc": "2026-10-25T00:02:32.8955997Z",
+  "Tables": [
+    {
+      "Table": "[txn].[Transactions]",
+      "Columns": [
+        "Id",
+        "AccountId",
+        "UserId",
+        "CounterpartyAccountId",
+        "TransactionType",
+        "Amount",
+        "Status",
+        "ReferenceNumber",
+        "Description",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "c5b752f0-0d78-4d2f-87ba-6a6c1c28afa3",
+          "48ccf57f-ed9f-4540-9e95-e638e00dfa49",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "94c5929d-fd98-4c68-8f10-16154e935e19",
+          "Transfer",
+          11.00,
+          "Pending",
+          "TXN2026102500023260692561381",
+          "Funds transfer",
+          "2026-10-25T00:02:32.7975309"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[TransferSagas]",
+      "Columns": [
+        "Id",
+        "TransactionId",
+        "SourceAccountId",
+        "DestinationAccountId",
+        "Amount",
+        "State",
+        "DestinationAccountNumber",
+        "RetryAfterUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "06533ce2-c4df-406d-b24c-da0a91997809",
+          "c5b752f0-0d78-4d2f-87ba-6a6c1c28afa3",
+          "48ccf57f-ed9f-4540-9e95-e638e00dfa49",
+          "94c5929d-fd98-4c68-8f10-16154e935e19",
+          11.00,
+          "Started",
+          "104176265960",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

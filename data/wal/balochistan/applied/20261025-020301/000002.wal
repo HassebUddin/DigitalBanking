@@ -1,0 +1,206 @@
+{
+  "Source": "DigitalBanking_Balochistan_A",
+  "FromVersion": 23,
+  "ToVersion": 27,
+  "CapturedAtUtc": "2026-10-24T21:01:15.8606908Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "27817857-2099-4142-9b3c-b7ced27209a5",
+          "CustomerRegisteredEvent",
+          "ba8d4b6a-cf29-44cd-abca-d89c421a58bf",
+          "{\u0022userId\u0022:\u0022ba8d4b6a-cf29-44cd-abca-d89c421a58bf\u0022,\u0022email\u0022:\u0022haseebtest@gmail.com\u0022,\u0022fullName\u0022:\u0022haseeb Test\u0022,\u0022nationalId\u0022:\u002242343-4563456-7\u0022,\u0022phoneNumber\u0022:\u00220323-4324345\u0022,\u0022address\u0022:\u00222410 MAHOGANY WAY\u0022,\u0022region\u0022:\u0022balochistan\u0022,\u0022eventId\u0022:\u0022a13b20a1-b0ca-4f90-9cbe-8b10e867fed3\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:01:14.3140763Z\u0022}",
+          "2026-10-24T21:01:14.3140763"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "a13b20a1-b0ca-4f90-9cbe-8b10e867fed3",
+          "CustomerRegisteredEvent",
+          "2026-10-24T21:01:15.7156201",
+          "2026-10-24T21:01:15.7160846"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[customer].[Customers]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "FullName",
+        "Email",
+        "NationalId",
+        "PhoneNumber",
+        "Address",
+        "KycStatus",
+        "Region",
+        "CreatedAtUtc",
+        "UpdatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "7b1b7236-f5e3-487e-a7d6-8c1207b68bda",
+          "ba8d4b6a-cf29-44cd-abca-d89c421a58bf",
+          "haseeb Test",
+          "haseebtest@gmail.com",
+          "42343-4563456-7",
+          "0323-4324345",
+          "2410 MAHOGANY WAY",
+          "Pending",
+          "balochistan",
+          "2026-10-24T21:01:14.3605127",
+          "2026-10-24T21:01:15.7339784"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[customer].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "a13b20a1-b0ca-4f90-9cbe-8b10e867fed3",
+          "CustomerRegisteredEvent",
+          "2026-10-24T21:01:15.7108327",
+          "2026-10-24T21:01:15.7516731"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "01731bf9-e84e-4c47-8b11-1f0c7c6ec9d8",
+          "ba8d4b6a-cf29-44cd-abca-d89c421a58bf",
+          "InApp",
+          "Welcome to Digital Banking",
+          "Your customer profile is ready. You can now open an account.",
+          false,
+          "2026-10-24T21:01:15.7189601"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "f58b85e4-f1af-4a11-ad31-bc0ad2c6ab3c",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u002201731bf9-e84e-4c47-8b11-1f0c7c6ec9d8\u0022,\u0022userId\u0022:\u0022ba8d4b6a-cf29-44cd-abca-d89c421a58bf\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Welcome to Digital Banking\u0022,\u0022body\u0022:\u0022Your customer profile is ready. You can now open an account.\u0022,\u0022eventId\u0022:\u0022f58b85e4-f1af-4a11-ad31-bc0ad2c6ab3c\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:01:15.7206385Z\u0022}",
+          "2026-10-24T21:01:15.7206385",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

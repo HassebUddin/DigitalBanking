@@ -1,0 +1,122 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 569,
+  "ToVersion": 570,
+  "CapturedAtUtc": "2026-10-25T00:03:06.21307Z",
+  "Tables": [
+    {
+      "Table": "[txn].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "481a8db5-774b-4bd3-bf33-aa6054759eae",
+          "MoneyTransferredEvent",
+          "{\u0022transactionId\u0022:\u0022c5b752f0-0d78-4d2f-87ba-6a6c1c28afa3\u0022,\u0022sourceAccountId\u0022:\u002248ccf57f-ed9f-4540-9e95-e638e00dfa49\u0022,\u0022destinationAccountId\u0022:\u002294c5929d-fd98-4c68-8f10-16154e935e19\u0022,\u0022sourceUserId\u0022:\u0022634e719c-3e0b-4fd1-bf48-8ef4d7d642cb\u0022,\u0022destinationUserId\u0022:\u0022b4c878b4-2e05-4507-95be-21471cdb2c49\u0022,\u0022amount\u0022:11,\u0022referenceNumber\u0022:\u0022TXN2026102500023260692561381\u0022,\u0022eventId\u0022:\u0022481a8db5-774b-4bd3-bf33-aa6054759eae\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:03:06.1091998Z\u0022}",
+          "2026-10-25T00:03:06.1091998",
+          null
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[Transactions]",
+      "Columns": [
+        "Id",
+        "AccountId",
+        "UserId",
+        "CounterpartyAccountId",
+        "TransactionType",
+        "Amount",
+        "Status",
+        "ReferenceNumber",
+        "Description",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "c5b752f0-0d78-4d2f-87ba-6a6c1c28afa3",
+          "48ccf57f-ed9f-4540-9e95-e638e00dfa49",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "94c5929d-fd98-4c68-8f10-16154e935e19",
+          "Transfer",
+          11.00,
+          "Completed",
+          "TXN2026102500023260692561381",
+          "Funds transfer",
+          "2026-10-25T00:02:32.7975309"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[TransferSagas]",
+      "Columns": [
+        "Id",
+        "TransactionId",
+        "SourceAccountId",
+        "DestinationAccountId",
+        "Amount",
+        "State",
+        "DestinationAccountNumber",
+        "RetryAfterUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "06533ce2-c4df-406d-b24c-da0a91997809",
+          "c5b752f0-0d78-4d2f-87ba-6a6c1c28afa3",
+          "48ccf57f-ed9f-4540-9e95-e638e00dfa49",
+          "94c5929d-fd98-4c68-8f10-16154e935e19",
+          11.00,
+          "Completed",
+          "104176265960",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

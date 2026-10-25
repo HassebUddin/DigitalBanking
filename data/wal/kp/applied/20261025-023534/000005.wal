@@ -1,0 +1,186 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 63,
+  "ToVersion": 65,
+  "CapturedAtUtc": "2026-10-24T21:07:19.8055866Z",
+  "Tables": [
+    {
+      "Table": "[account].[Accounts]",
+      "Columns": [
+        "Id",
+        "CustomerId",
+        "UserId",
+        "AccountNumber",
+        "AccountType",
+        "Balance",
+        "Currency",
+        "Status",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "e633f6e3-457f-46d0-a28b-d621811a68fa",
+          "cb318547-6e61-43c9-8079-9466a821cd03",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "109522430162",
+          "Savings",
+          100.00,
+          "PKR",
+          "Active",
+          "2026-10-24T21:07:04.0449313"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[account].[LedgerEntries]",
+      "Columns": [
+        "Id",
+        "JournalId",
+        "IdempotencyKey",
+        "Leg",
+        "LedgerAccount",
+        "AccountId",
+        "Debit",
+        "Credit",
+        "BalanceAfter",
+        "Purpose",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Int32",
+        "System.String",
+        "System.Guid",
+        "System.Decimal",
+        "System.Decimal",
+        "System.Decimal",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "32e45551-4c75-4f2a-88ea-1d79f74dc0dd",
+          "TXN2026102421071955545794955",
+          "TXN2026102421071955545794955:C:e633f6e3-457f-46d0-a28b-d621811a68fa",
+          2,
+          "GL:CASH",
+          null,
+          100.00,
+          0.00,
+          null,
+          "Deposit",
+          "2026-10-24T21:07:19.5919427"
+        ],
+        [
+          "942afae8-9e76-4a80-ba6e-78af3978f42d",
+          "TXN2026102421071955545794955",
+          "TXN2026102421071955545794955:C:e633f6e3-457f-46d0-a28b-d621811a68fa",
+          1,
+          "CUST:109522430162",
+          "e633f6e3-457f-46d0-a28b-d621811a68fa",
+          0.00,
+          100.00,
+          100.00,
+          "Deposit",
+          "2026-10-24T21:07:19.5919427"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "a6ba5615-66dc-4f99-a8b6-aed217c40b7e",
+          "MoneyDepositedEvent",
+          "{\u0022transactionId\u0022:\u0022c452e783-cbe4-468d-8140-f46473a589f8\u0022,\u0022accountId\u0022:\u0022e633f6e3-457f-46d0-a28b-d621811a68fa\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022amount\u0022:100,\u0022referenceNumber\u0022:\u0022TXN2026102421071955545794955\u0022,\u0022eventId\u0022:\u0022a6ba5615-66dc-4f99-a8b6-aed217c40b7e\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:19.6575514Z\u0022}",
+          "2026-10-24T21:07:19.6575514",
+          null
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[Transactions]",
+      "Columns": [
+        "Id",
+        "AccountId",
+        "UserId",
+        "CounterpartyAccountId",
+        "TransactionType",
+        "Amount",
+        "Status",
+        "ReferenceNumber",
+        "Description",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "c452e783-cbe4-468d-8140-f46473a589f8",
+          "e633f6e3-457f-46d0-a28b-d621811a68fa",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          null,
+          "Deposit",
+          100.00,
+          "Completed",
+          "TXN2026102421071955545794955",
+          "Cash deposit",
+          "2026-10-24T21:07:19.5554614"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

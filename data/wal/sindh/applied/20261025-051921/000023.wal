@@ -1,0 +1,74 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 584,
+  "ToVersion": 585,
+  "CapturedAtUtc": "2026-10-25T00:13:17.8885455Z",
+  "Tables": [
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "29309f07-1780-40c9-b726-014afd9042bb",
+          "89466c88-539a-476a-9316-05bd154deed6",
+          "InApp",
+          "Transfer received",
+          "PKR 1.00 was credited to your account. Reference TXN2026102500131782469225280.",
+          false,
+          "2026-10-25T00:13:17.7655534"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "b925e939-3972-4934-a405-863721c5b80e",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u002229309f07-1780-40c9-b726-014afd9042bb\u0022,\u0022userId\u0022:\u002289466c88-539a-476a-9316-05bd154deed6\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer received\u0022,\u0022body\u0022:\u0022PKR 1.00 was credited to your account. Reference TXN2026102500131782469225280.\u0022,\u0022eventId\u0022:\u0022b925e939-3972-4934-a405-863721c5b80e\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:13:17.7660922Z\u0022}",
+          "2026-10-25T00:13:17.7660922",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

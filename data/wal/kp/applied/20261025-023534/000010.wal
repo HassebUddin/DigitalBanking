@@ -1,0 +1,150 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 72,
+  "ToVersion": 74,
+  "CapturedAtUtc": "2026-10-24T21:07:48.347191Z",
+  "Tables": [
+    {
+      "Table": "[account].[Accounts]",
+      "Columns": [
+        "Id",
+        "CustomerId",
+        "UserId",
+        "AccountNumber",
+        "AccountType",
+        "Balance",
+        "Currency",
+        "Status",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "e633f6e3-457f-46d0-a28b-d621811a68fa",
+          "cb318547-6e61-43c9-8079-9466a821cd03",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "109522430162",
+          "Savings",
+          89.00,
+          "PKR",
+          "Active",
+          "2026-10-24T21:07:04.0449313"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[account].[LedgerEntries]",
+      "Columns": [
+        "Id",
+        "JournalId",
+        "IdempotencyKey",
+        "Leg",
+        "LedgerAccount",
+        "AccountId",
+        "Debit",
+        "Credit",
+        "BalanceAfter",
+        "Purpose",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Int32",
+        "System.String",
+        "System.Guid",
+        "System.Decimal",
+        "System.Decimal",
+        "System.Decimal",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "0519f20b-6b32-4b74-a109-295c726dc932",
+          "TXN2026102421074894990692077",
+          "TXN2026102421074894990692077:D:e633f6e3-457f-46d0-a28b-d621811a68fa",
+          1,
+          "CUST:109522430162",
+          "e633f6e3-457f-46d0-a28b-d621811a68fa",
+          11.00,
+          0.00,
+          89.00,
+          "TransferOut",
+          "2026-10-24T21:07:48.142395"
+        ],
+        [
+          "d3941040-ebc0-404b-9205-2d3d7eb5b319",
+          "TXN2026102421074894990692077",
+          "TXN2026102421074894990692077:D:e633f6e3-457f-46d0-a28b-d621811a68fa",
+          2,
+          "GL:CLEARING",
+          null,
+          0.00,
+          11.00,
+          null,
+          "TransferOut",
+          "2026-10-24T21:07:48.142395"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[TransferSagas]",
+      "Columns": [
+        "Id",
+        "TransactionId",
+        "SourceAccountId",
+        "DestinationAccountId",
+        "Amount",
+        "State",
+        "DestinationAccountNumber",
+        "RetryAfterUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "88bc2dae-82c0-4f92-a395-16d26af605f4",
+          "2e332092-fb20-4b09-927a-be20c5dd5b0f",
+          "e633f6e3-457f-46d0-a28b-d621811a68fa",
+          "fb9d3b8b-3866-4572-afb7-d12cf5c3745b",
+          11.00,
+          "Debited",
+          "101771435240",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

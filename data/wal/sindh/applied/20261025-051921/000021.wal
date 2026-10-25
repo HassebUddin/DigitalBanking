@@ -1,0 +1,65 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 582,
+  "ToVersion": 583,
+  "CapturedAtUtc": "2026-10-25T00:13:16.2725235Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "6863ed0b-481e-494f-be8c-f44e5d4c5013",
+          "NotificationSentEvent",
+          "89466c88-539a-476a-9316-05bd154deed6",
+          "{\u0022notificationId\u0022:\u00228618a754-db27-49dd-831d-5bb1ffd900cc\u0022,\u0022userId\u0022:\u002289466c88-539a-476a-9316-05bd154deed6\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer received\u0022,\u0022body\u0022:\u0022PKR 1.00 was credited to your account. Reference TXN2026102500124183462631317.\u0022,\u0022eventId\u0022:\u0022fc318754-2316-4222-af95-9d3d5b8401e6\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:13:15.7234647Z\u0022}",
+          "2026-10-25T00:13:15.7234647"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "fc318754-2316-4222-af95-9d3d5b8401e6",
+          "NotificationSentEvent",
+          "2026-10-25T00:13:16.102323",
+          "2026-10-25T00:13:16.1025469"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "Source": "DigitalBanking_Punjab_A",
+  "FromVersion": 400,
+  "ToVersion": 401,
+  "CapturedAtUtc": "2026-10-25T00:04:15.5188983Z",
+  "Tables": [
+    {
+      "Table": "[account].[Accounts]",
+      "Columns": [
+        "Id",
+        "CustomerId",
+        "UserId",
+        "AccountNumber",
+        "AccountType",
+        "Balance",
+        "Currency",
+        "Status",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "f5db27fd-eee7-4100-b7ba-d3c886729ff7",
+          "d498cd98-f473-4f91-b1cf-dfd912892535",
+          "dddddddd-dddd-dddd-dddd-ddddddddddd2",
+          "104290097682",
+          "Current",
+          77.80,
+          "PKR",
+          "Active",
+          "2026-10-23T10:19:21.6769653"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[account].[LedgerEntries]",
+      "Columns": [
+        "Id",
+        "JournalId",
+        "IdempotencyKey",
+        "Leg",
+        "LedgerAccount",
+        "AccountId",
+        "Debit",
+        "Credit",
+        "BalanceAfter",
+        "Purpose",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Int32",
+        "System.String",
+        "System.Guid",
+        "System.Decimal",
+        "System.Decimal",
+        "System.Decimal",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "afde7c12-a8ff-40d1-9fef-82031f64179a",
+          "TXN2026102500040575931409246",
+          "TXN2026102500040575931409246:D:f5db27fd-eee7-4100-b7ba-d3c886729ff7",
+          1,
+          "CUST:104290097682",
+          "f5db27fd-eee7-4100-b7ba-d3c886729ff7",
+          1.00,
+          0.00,
+          77.80,
+          "TransferOut",
+          "2026-10-25T00:04:15.3647294"
+        ],
+        [
+          "dbffdb81-fc4a-4255-ac3c-e7a54e8529a3",
+          "TXN2026102500040575931409246",
+          "TXN2026102500040575931409246:D:f5db27fd-eee7-4100-b7ba-d3c886729ff7",
+          2,
+          "GL:CLEARING",
+          null,
+          0.00,
+          1.00,
+          null,
+          "TransferOut",
+          "2026-10-25T00:04:15.3647294"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

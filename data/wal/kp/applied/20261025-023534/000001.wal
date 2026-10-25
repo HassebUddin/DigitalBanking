@@ -1,0 +1,68 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 55,
+  "ToVersion": 56,
+  "CapturedAtUtc": "2026-10-24T21:06:54.598462Z",
+  "Tables": [
+    {
+      "Table": "[account].[AccountApplications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "CustomerId",
+        "AccountType",
+        "Purpose",
+        "IdentityDocumentUrl",
+        "IdentityBackDocumentUrl",
+        "AddressDocumentUrl",
+        "SignatureUrl",
+        "TermsAccepted",
+        "Status",
+        "ReviewNote",
+        "CreatedAccountId",
+        "CreatedAtUtc",
+        "ReviewedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.String",
+        "System.String",
+        "System.Guid",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "f01713ac-66f0-45da-9029-07459d3e8be5",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "cb318547-6e61-43c9-8079-9466a821cd03",
+          "Savings",
+          "Personal banking",
+          "/uploads/identity/4c27af659bf649f685c24f39a85de4f7.png",
+          "/uploads/identity/6b4219e0da7c4645a859a18155de6628.png",
+          "",
+          "/uploads/signatures/2111babf33bd439e9c8e7c036edcea78.png",
+          true,
+          "Pending",
+          null,
+          null,
+          "2026-10-24T21:06:54.4192628",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

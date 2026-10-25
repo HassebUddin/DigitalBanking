@@ -1,0 +1,104 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 597,
+  "ToVersion": 599,
+  "CapturedAtUtc": "2026-10-25T00:16:11.0723357Z",
+  "Tables": [
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "8c2e0e61-56fc-4b48-859b-f96fa4af4831",
+          "634e719c-3e0b-4fd1-bf48-8ef4d7d642cb",
+          "InApp",
+          "Transfer failed",
+          "Your transfer of PKR 13.00 could not be completed. No money was taken. Reference TXN2026102500135652311251416.",
+          false,
+          "2026-10-25T00:16:11.0016317"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "db1451c0-43a5-438d-ba28-2d543422ee1d",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u00228c2e0e61-56fc-4b48-859b-f96fa4af4831\u0022,\u0022userId\u0022:\u0022634e719c-3e0b-4fd1-bf48-8ef4d7d642cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer failed\u0022,\u0022body\u0022:\u0022Your transfer of PKR 13.00 could not be completed. No money was taken. Reference TXN2026102500135652311251416.\u0022,\u0022eventId\u0022:\u0022db1451c0-43a5-438d-ba28-2d543422ee1d\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:16:11.0018953Z\u0022}",
+          "2026-10-25T00:16:11.0018953",
+          null
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "12162952-8e5e-4833-b925-bf84dc0aeb0b",
+          "TransferFailedEvent",
+          "{\u0022transactionId\u0022:\u0022384cb302-965e-449c-a86f-fb44f254702a\u0022,\u0022sourceAccountId\u0022:\u002248ccf57f-ed9f-4540-9e95-e638e00dfa49\u0022,\u0022userId\u0022:\u0022634e719c-3e0b-4fd1-bf48-8ef4d7d642cb\u0022,\u0022amount\u0022:13.00,\u0022referenceNumber\u0022:\u0022TXN2026102500135652311251416\u0022,\u0022reason\u0022:\u0022\u0022,\u0022eventId\u0022:\u002212162952-8e5e-4833-b925-bf84dc0aeb0b\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:16:09.22322Z\u0022}",
+          "2026-10-25T00:16:09.22322",
+          "2026-10-25T00:16:10.9977653"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

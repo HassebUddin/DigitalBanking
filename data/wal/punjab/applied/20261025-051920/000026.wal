@@ -1,0 +1,95 @@
+{
+  "Source": "DigitalBanking_Punjab_A",
+  "FromVersion": 425,
+  "ToVersion": 427,
+  "CapturedAtUtc": "2026-10-25T00:13:18.1714673Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "cf979478-8586-43e9-b27e-fb1bdfdc344b",
+          "NotificationSentEvent",
+          "dddddddd-dddd-dddd-dddd-ddddddddddd2",
+          "{\u0022notificationId\u0022:\u002214deb552-f144-4513-b3d6-4c1b308b5933\u0022,\u0022userId\u0022:\u0022dddddddd-dddd-dddd-dddd-ddddddddddd2\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer sent\u0022,\u0022body\u0022:\u0022PKR 1.00 was transferred. Reference TXN2026102500131782469225280.\u0022,\u0022eventId\u0022:\u0022988e1926-a0a9-4b29-bf9d-62c249fc99cb\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:13:17.7652918Z\u0022}",
+          "2026-10-25T00:13:17.7652918"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "988e1926-a0a9-4b29-bf9d-62c249fc99cb",
+          "NotificationSentEvent",
+          "2026-10-25T00:13:18.1077812",
+          "2026-10-25T00:13:18.1079844"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "988e1926-a0a9-4b29-bf9d-62c249fc99cb",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u002214deb552-f144-4513-b3d6-4c1b308b5933\u0022,\u0022userId\u0022:\u0022dddddddd-dddd-dddd-dddd-ddddddddddd2\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer sent\u0022,\u0022body\u0022:\u0022PKR 1.00 was transferred. Reference TXN2026102500131782469225280.\u0022,\u0022eventId\u0022:\u0022988e1926-a0a9-4b29-bf9d-62c249fc99cb\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:13:17.7652918Z\u0022}",
+          "2026-10-25T00:13:17.7652918",
+          "2026-10-25T00:13:18.0968729"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "Source": "DigitalBanking_Punjab_B",
+  "FromVersion": 234,
+  "ToVersion": 235,
+  "CapturedAtUtc": "2026-10-24T20:54:31.2108925Z",
+  "Tables": [
+    {
+      "Table": "[txn].[TransferSagas]",
+      "Columns": [
+        "Id",
+        "TransactionId",
+        "SourceAccountId",
+        "DestinationAccountId",
+        "Amount",
+        "State",
+        "DestinationAccountNumber",
+        "RetryAfterUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "d78656ca-2a4c-4550-860d-76127f883459",
+          "3c91d9e1-c828-48de-9091-23130939c577",
+          "f5db27fd-eee7-4100-b7ba-d3c886729ff7",
+          "fb9d3b8b-3866-4572-afb7-d12cf5c3745b",
+          1.00,
+          "Debited",
+          "101771435240",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

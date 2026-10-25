@@ -1,0 +1,101 @@
+{
+  "Source": "DigitalBanking_Punjab_B",
+  "FromVersion": 452,
+  "ToVersion": 453,
+  "CapturedAtUtc": "2026-10-25T00:21:24.0758867Z",
+  "Tables": [
+    {
+      "Table": "[notify].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "ed40da45-9723-462f-a3c4-de9857ae596e",
+          "MoneyTransferredEvent",
+          "2026-10-25T00:21:23.8400755",
+          "2026-10-25T00:21:23.841081"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "f5129033-6a83-447a-930e-7e2c6e4e7300",
+          "b4c878b4-2e05-4507-95be-21471cdb2c49",
+          "InApp",
+          "Transfer sent",
+          "PKR 77.00 was transferred. Reference TXN2026102500212123131193921.",
+          false,
+          "2026-10-25T00:21:23.8402091"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "af26464a-5838-47af-98c0-25ee4840687d",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u0022f5129033-6a83-447a-930e-7e2c6e4e7300\u0022,\u0022userId\u0022:\u0022b4c878b4-2e05-4507-95be-21471cdb2c49\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer sent\u0022,\u0022body\u0022:\u0022PKR 77.00 was transferred. Reference TXN2026102500212123131193921.\u0022,\u0022eventId\u0022:\u0022af26464a-5838-47af-98c0-25ee4840687d\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:21:23.8402521Z\u0022}",
+          "2026-10-25T00:21:23.8402521",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

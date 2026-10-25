@@ -1,0 +1,221 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 57,
+  "ToVersion": 61,
+  "CapturedAtUtc": "2026-10-24T21:07:04.4130196Z",
+  "Tables": [
+    {
+      "Table": "[account].[AccountApplications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "CustomerId",
+        "AccountType",
+        "Purpose",
+        "IdentityDocumentUrl",
+        "IdentityBackDocumentUrl",
+        "AddressDocumentUrl",
+        "SignatureUrl",
+        "TermsAccepted",
+        "Status",
+        "ReviewNote",
+        "CreatedAccountId",
+        "CreatedAtUtc",
+        "ReviewedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.String",
+        "System.String",
+        "System.Guid",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "f01713ac-66f0-45da-9029-07459d3e8be5",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "cb318547-6e61-43c9-8079-9466a821cd03",
+          "Savings",
+          "Personal banking",
+          "/uploads/identity/4c27af659bf649f685c24f39a85de4f7.png",
+          "/uploads/identity/6b4219e0da7c4645a859a18155de6628.png",
+          "",
+          "/uploads/signatures/2111babf33bd439e9c8e7c036edcea78.png",
+          true,
+          "Approved",
+          "Approved after document review.",
+          "e633f6e3-457f-46d0-a28b-d621811a68fa",
+          "2026-10-24T21:06:54.4192628",
+          "2026-10-24T21:07:04.0930016"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[account].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "bc5dde46-ffd0-49d5-bf90-9a3a507d0474",
+          "AccountCreatedEvent",
+          "{\u0022accountId\u0022:\u0022e633f6e3-457f-46d0-a28b-d621811a68fa\u0022,\u0022customerId\u0022:\u0022cb318547-6e61-43c9-8079-9466a821cd03\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022accountNumber\u0022:\u0022109522430162\u0022,\u0022accountType\u0022:\u0022Savings\u0022,\u0022eventId\u0022:\u0022bc5dde46-ffd0-49d5-bf90-9a3a507d0474\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:04.0461901Z\u0022}",
+          "2026-10-24T21:07:04.0461901",
+          "2026-10-24T21:07:04.1585109"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "68615d02-0c46-46fa-b9b6-bbd0ed789bff",
+          "AccountCreatedEvent",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "{\u0022accountId\u0022:\u0022e633f6e3-457f-46d0-a28b-d621811a68fa\u0022,\u0022customerId\u0022:\u0022cb318547-6e61-43c9-8079-9466a821cd03\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022accountNumber\u0022:\u0022109522430162\u0022,\u0022accountType\u0022:\u0022Savings\u0022,\u0022eventId\u0022:\u0022bc5dde46-ffd0-49d5-bf90-9a3a507d0474\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:04.0461901Z\u0022}",
+          "2026-10-24T21:07:04.0461901"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "bc5dde46-ffd0-49d5-bf90-9a3a507d0474",
+          "AccountCreatedEvent",
+          "2026-10-24T21:07:04.1984564",
+          "2026-10-24T21:07:04.1992731"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "4021acfb-07d4-45c8-90b6-f69883f39349",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "InApp",
+          "Account opened",
+          "Account 109522430162 is ready.",
+          false,
+          "2026-10-24T21:07:04.1654161"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "94d6aa70-69cb-45f1-82de-3f0eb35aac45",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u00224021acfb-07d4-45c8-90b6-f69883f39349\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Account opened\u0022,\u0022body\u0022:\u0022Account 109522430162 is ready.\u0022,\u0022eventId\u0022:\u002294d6aa70-69cb-45f1-82de-3f0eb35aac45\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:04.1681088Z\u0022}",
+          "2026-10-24T21:07:04.1681088",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 601,
+  "ToVersion": 602,
+  "CapturedAtUtc": "2026-10-25T00:16:28.6249981Z",
+  "Tables": [
+    {
+      "Table": "[account].[Accounts]",
+      "Columns": [
+        "Id",
+        "CustomerId",
+        "UserId",
+        "AccountNumber",
+        "AccountType",
+        "Balance",
+        "Currency",
+        "Status",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "fb9d3b8b-3866-4572-afb7-d12cf5c3745b",
+          "373b82f3-1a68-4d06-80e8-e01649fc4cbb",
+          "89466c88-539a-476a-9316-05bd154deed6",
+          "101771435240",
+          "Savings",
+          250.20,
+          "PKR",
+          "Active",
+          "2026-10-24T16:17:33.4308587"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[account].[LedgerEntries]",
+      "Columns": [
+        "Id",
+        "JournalId",
+        "IdempotencyKey",
+        "Leg",
+        "LedgerAccount",
+        "AccountId",
+        "Debit",
+        "Credit",
+        "BalanceAfter",
+        "Purpose",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.Int32",
+        "System.String",
+        "System.Guid",
+        "System.Decimal",
+        "System.Decimal",
+        "System.Decimal",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "22bb9587-cfbf-4bc6-aa05-6434d2ed6a38",
+          "TXN2026102500162448869764113",
+          "TXN2026102500162448869764113:C:fb9d3b8b-3866-4572-afb7-d12cf5c3745b",
+          2,
+          "GL:CLEARING",
+          null,
+          1.00,
+          0.00,
+          null,
+          "TransferIn",
+          "2026-10-25T00:16:28.506414"
+        ],
+        [
+          "03e3f6d3-852e-4b01-b0ce-d80621f40554",
+          "TXN2026102500162448869764113",
+          "TXN2026102500162448869764113:C:fb9d3b8b-3866-4572-afb7-d12cf5c3745b",
+          1,
+          "CUST:101771435240",
+          "fb9d3b8b-3866-4572-afb7-d12cf5c3745b",
+          0.00,
+          1.00,
+          250.20,
+          "TransferIn",
+          "2026-10-25T00:16:28.506414"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

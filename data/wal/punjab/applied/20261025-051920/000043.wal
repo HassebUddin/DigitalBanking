@@ -1,0 +1,65 @@
+{
+  "Source": "DigitalBanking_Punjab_A",
+  "FromVersion": 459,
+  "ToVersion": 460,
+  "CapturedAtUtc": "2026-10-25T00:16:33.0957639Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "cd290237-ae16-4983-9444-556d45d140b5",
+          "NotificationSentEvent",
+          "dddddddd-dddd-dddd-dddd-ddddddddddd2",
+          "{\u0022notificationId\u0022:\u0022051a5408-22e6-4d07-a422-47db3bf70fd8\u0022,\u0022userId\u0022:\u0022dddddddd-dddd-dddd-dddd-ddddddddddd2\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer sent\u0022,\u0022body\u0022:\u0022PKR 1.00 was transferred. Reference TXN2026102500162448869764113.\u0022,\u0022eventId\u0022:\u0022ac516ef4-6a44-425b-a289-603ae8fe0ad4\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-25T00:16:31.2272588Z\u0022}",
+          "2026-10-25T00:16:31.2272588"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "ac516ef4-6a44-425b-a289-603ae8fe0ad4",
+          "NotificationSentEvent",
+          "2026-10-25T00:16:32.9079821",
+          "2026-10-25T00:16:32.9080766"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

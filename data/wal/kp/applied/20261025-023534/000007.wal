@@ -1,0 +1,161 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 66,
+  "ToVersion": 69,
+  "CapturedAtUtc": "2026-10-24T21:07:20.2236529Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "73b7a277-7092-45b7-8b01-fa78f71a2809",
+          "MoneyDepositedEvent",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "{\u0022transactionId\u0022:\u0022c452e783-cbe4-468d-8140-f46473a589f8\u0022,\u0022accountId\u0022:\u0022e633f6e3-457f-46d0-a28b-d621811a68fa\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022amount\u0022:100,\u0022referenceNumber\u0022:\u0022TXN2026102421071955545794955\u0022,\u0022eventId\u0022:\u0022a6ba5615-66dc-4f99-a8b6-aed217c40b7e\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:19.6575514Z\u0022}",
+          "2026-10-24T21:07:19.6575514"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "a6ba5615-66dc-4f99-a8b6-aed217c40b7e",
+          "MoneyDepositedEvent",
+          "2026-10-24T21:07:20.0794864",
+          "2026-10-24T21:07:20.0802606"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[Notifications]",
+      "Columns": [
+        "Id",
+        "UserId",
+        "Channel",
+        "Title",
+        "Body",
+        "IsRead",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.Boolean",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "7219ae98-4f49-4da1-8df1-dc771adb1c77",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "InApp",
+          "Deposit successful",
+          "PKR 100.00 was deposited. Reference TXN2026102421071955545794955.",
+          false,
+          "2026-10-24T21:07:20.081677"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "7ef97e55-456f-4489-b60c-773cb83dd414",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u00227219ae98-4f49-4da1-8df1-dc771adb1c77\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Deposit successful\u0022,\u0022body\u0022:\u0022PKR 100.00 was deposited. Reference TXN2026102421071955545794955.\u0022,\u0022eventId\u0022:\u00227ef97e55-456f-4489-b60c-773cb83dd414\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:20.0826921Z\u0022}",
+          "2026-10-24T21:07:20.0826921",
+          null
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "a6ba5615-66dc-4f99-a8b6-aed217c40b7e",
+          "MoneyDepositedEvent",
+          "{\u0022transactionId\u0022:\u0022c452e783-cbe4-468d-8140-f46473a589f8\u0022,\u0022accountId\u0022:\u0022e633f6e3-457f-46d0-a28b-d621811a68fa\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022amount\u0022:100,\u0022referenceNumber\u0022:\u0022TXN2026102421071955545794955\u0022,\u0022eventId\u0022:\u0022a6ba5615-66dc-4f99-a8b6-aed217c40b7e\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:19.6575514Z\u0022}",
+          "2026-10-24T21:07:19.6575514",
+          "2026-10-24T21:07:20.0570664"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "Source": "DigitalBanking_Punjab_A",
+  "FromVersion": 445,
+  "ToVersion": 446,
+  "CapturedAtUtc": "2026-10-25T00:16:11.0694713Z",
+  "Tables": [
+    {
+      "Table": "[notify].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "12162952-8e5e-4833-b925-bf84dc0aeb0b",
+          "TransferFailedEvent",
+          "2026-10-25T00:16:11.0008474",
+          "2026-10-25T00:16:11.0019712"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

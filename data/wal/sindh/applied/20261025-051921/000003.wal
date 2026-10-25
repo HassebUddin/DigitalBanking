@@ -1,0 +1,47 @@
+{
+  "Source": "DigitalBanking_Sindh_A",
+  "FromVersion": 559,
+  "ToVersion": 560,
+  "CapturedAtUtc": "2026-10-25T00:01:48.4142188Z",
+  "Tables": [
+    {
+      "Table": "[txn].[TransferSagas]",
+      "Columns": [
+        "Id",
+        "TransactionId",
+        "SourceAccountId",
+        "DestinationAccountId",
+        "Amount",
+        "State",
+        "DestinationAccountNumber",
+        "RetryAfterUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "aaf2f0c8-f526-4a3f-af48-90fb58fc1a9e",
+          "66bc76f7-524b-44db-ad0e-c2fa1cbacdd1",
+          "48ccf57f-ed9f-4540-9e95-e638e00dfa49",
+          "94c5929d-fd98-4c68-8f10-16154e935e19",
+          107.00,
+          "Debited",
+          "104176265960",
+          null
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

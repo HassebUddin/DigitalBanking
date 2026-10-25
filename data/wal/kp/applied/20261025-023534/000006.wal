@@ -1,0 +1,83 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 65,
+  "ToVersion": 66,
+  "CapturedAtUtc": "2026-10-24T21:07:19.9505562Z",
+  "Tables": [
+    {
+      "Table": "[txn].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "a6ba5615-66dc-4f99-a8b6-aed217c40b7e",
+          "MoneyDepositedEvent",
+          "{\u0022transactionId\u0022:\u0022c452e783-cbe4-468d-8140-f46473a589f8\u0022,\u0022accountId\u0022:\u0022e633f6e3-457f-46d0-a28b-d621811a68fa\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022amount\u0022:100,\u0022referenceNumber\u0022:\u0022TXN2026102421071955545794955\u0022,\u0022eventId\u0022:\u0022a6ba5615-66dc-4f99-a8b6-aed217c40b7e\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:19.6575514Z\u0022}",
+          "2026-10-24T21:07:19.6575514",
+          null
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[txn].[Transactions]",
+      "Columns": [
+        "Id",
+        "AccountId",
+        "UserId",
+        "CounterpartyAccountId",
+        "TransactionType",
+        "Amount",
+        "Status",
+        "ReferenceNumber",
+        "Description",
+        "CreatedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.Guid",
+        "System.String",
+        "System.Decimal",
+        "System.String",
+        "System.String",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "c452e783-cbe4-468d-8140-f46473a589f8",
+          "e633f6e3-457f-46d0-a28b-d621811a68fa",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          null,
+          "Deposit",
+          100.00,
+          "Completed",
+          "TXN2026102421071955545794955",
+          "Cash deposit",
+          "2026-10-24T21:07:19.5554614"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

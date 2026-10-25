@@ -1,0 +1,95 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 69,
+  "ToVersion": 71,
+  "CapturedAtUtc": "2026-10-24T21:07:21.7898732Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "79174197-a0b9-4874-8cd9-e32df7f5ffd3",
+          "NotificationSentEvent",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "{\u0022notificationId\u0022:\u00227219ae98-4f49-4da1-8df1-dc771adb1c77\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Deposit successful\u0022,\u0022body\u0022:\u0022PKR 100.00 was deposited. Reference TXN2026102421071955545794955.\u0022,\u0022eventId\u0022:\u00227ef97e55-456f-4489-b60c-773cb83dd414\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:20.0826921Z\u0022}",
+          "2026-10-24T21:07:20.0826921"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "7ef97e55-456f-4489-b60c-773cb83dd414",
+          "NotificationSentEvent",
+          "2026-10-24T21:07:21.6722904",
+          "2026-10-24T21:07:21.672535"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "7ef97e55-456f-4489-b60c-773cb83dd414",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u00227219ae98-4f49-4da1-8df1-dc771adb1c77\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Deposit successful\u0022,\u0022body\u0022:\u0022PKR 100.00 was deposited. Reference TXN2026102421071955545794955.\u0022,\u0022eventId\u0022:\u00227ef97e55-456f-4489-b60c-773cb83dd414\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:20.0826921Z\u0022}",
+          "2026-10-24T21:07:20.0826921",
+          "2026-10-24T21:07:21.6580449"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

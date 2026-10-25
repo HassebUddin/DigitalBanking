@@ -1,0 +1,95 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 52,
+  "ToVersion": 54,
+  "CapturedAtUtc": "2026-10-24T21:04:16.9873241Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "8f61fe3d-c531-4867-8c0c-ffc4a1b4a525",
+          "NotificationSentEvent",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "{\u0022notificationId\u0022:\u0022943aac31-4835-4a87-8cfc-1ac9a5698558\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Welcome to Digital Banking\u0022,\u0022body\u0022:\u0022Your customer profile is ready. You can now open an account.\u0022,\u0022eventId\u0022:\u0022d8e2fb17-a620-4a55-a7a3-dd62f23a75bb\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:04:15.0325086Z\u0022}",
+          "2026-10-24T21:04:15.0325086"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "d8e2fb17-a620-4a55-a7a3-dd62f23a75bb",
+          "NotificationSentEvent",
+          "2026-10-24T21:04:16.9030203",
+          "2026-10-24T21:04:16.9034128"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[notify].[OutboxMessages]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "Payload",
+        "OccurredAtUtc",
+        "PublishedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "d8e2fb17-a620-4a55-a7a3-dd62f23a75bb",
+          "NotificationSentEvent",
+          "{\u0022notificationId\u0022:\u0022943aac31-4835-4a87-8cfc-1ac9a5698558\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Welcome to Digital Banking\u0022,\u0022body\u0022:\u0022Your customer profile is ready. You can now open an account.\u0022,\u0022eventId\u0022:\u0022d8e2fb17-a620-4a55-a7a3-dd62f23a75bb\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:04:15.0325086Z\u0022}",
+          "2026-10-24T21:04:15.0325086",
+          "2026-10-24T21:04:16.8946809"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}

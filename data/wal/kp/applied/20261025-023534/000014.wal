@@ -1,0 +1,65 @@
+{
+  "Source": "DigitalBanking_KP_B",
+  "FromVersion": 79,
+  "ToVersion": 80,
+  "CapturedAtUtc": "2026-10-24T21:07:50.2629044Z",
+  "Tables": [
+    {
+      "Table": "[audit].[AuditLogs]",
+      "Columns": [
+        "Id",
+        "EventType",
+        "ActorUserId",
+        "Payload",
+        "OccurredAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.Guid",
+        "System.String",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "Id"
+      ],
+      "Upserts": [
+        [
+          "57f977d4-389b-4dff-b3ef-4b0c47703176",
+          "NotificationSentEvent",
+          "16b18fc9-b90c-4e80-bbd2-4ad807e306cb",
+          "{\u0022notificationId\u0022:\u0022ab46e177-c47e-4d7e-b6e0-ae0adcc2b5e1\u0022,\u0022userId\u0022:\u002216b18fc9-b90c-4e80-bbd2-4ad807e306cb\u0022,\u0022channel\u0022:\u0022InApp\u0022,\u0022title\u0022:\u0022Transfer sent\u0022,\u0022body\u0022:\u0022PKR 11.00 was transferred. Reference TXN2026102421074894990692077.\u0022,\u0022eventId\u0022:\u0022eba76236-1172-427f-b7a2-d27a29aa3afe\u0022,\u0022occurredAtUtc\u0022:\u00222026-10-24T21:07:48.4567665Z\u0022}",
+          "2026-10-24T21:07:48.4567665"
+        ]
+      ],
+      "Deletes": []
+    },
+    {
+      "Table": "[audit].[InboxMessages]",
+      "Columns": [
+        "EventId",
+        "EventType",
+        "ReceivedAtUtc",
+        "ProcessedAtUtc"
+      ],
+      "Types": [
+        "System.Guid",
+        "System.String",
+        "System.DateTime",
+        "System.DateTime"
+      ],
+      "Keys": [
+        "EventId"
+      ],
+      "Upserts": [
+        [
+          "eba76236-1172-427f-b7a2-d27a29aa3afe",
+          "NotificationSentEvent",
+          "2026-10-24T21:07:50.092588",
+          "2026-10-24T21:07:50.0927781"
+        ]
+      ],
+      "Deletes": []
+    }
+  ]
+}
