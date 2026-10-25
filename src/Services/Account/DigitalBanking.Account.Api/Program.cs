@@ -22,6 +22,7 @@ builder.Services.AddScoped<AccountService>();
 builder.Services.AddEventHandler<AccountApplicationQueuedHandler>(nameof(AccountApplicationQueuedEvent));
 builder.Services.AddEventHandler<AccountApplicationReviewQueuedHandler>(nameof(AccountApplicationReviewQueuedEvent));
 builder.Services.AddScoped<LedgerAuditor>();
+builder.Services.AddScoped<TwoPhaseParticipant>();
 builder.Services.AddSingleton<AccountDirectory>();
 builder.Services.AddSingleton<AccountFileStore>();
 builder.Services.Configure<ServiceEndpoints>(builder.Configuration.GetSection(ServiceEndpoints.SectionName));

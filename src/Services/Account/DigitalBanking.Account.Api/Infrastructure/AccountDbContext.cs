@@ -10,6 +10,7 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
     public DbSet<AccountApplication> Applications => Set<AccountApplication>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
+    public DbSet<PreparedMovement> PreparedMovements => Set<PreparedMovement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +57,20 @@ public sealed class AccountDbContext(DbContextOptions<AccountDbContext> options)
             entity.Property(entry => entry.Debit).HasPrecision(18, 2);
             entity.Property(entry => entry.Credit).HasPrecision(18, 2);
             entity.Property(entry => entry.BalanceAfter).HasPrecision(18, 2);
+        });
+
+        // Two-phase-commit participant log (added to existing databases by DatabaseBootstrap).
+        modelBuilder.Entity<PreparedMovement>(entity =>
+        {
+            entity.ToTable("PreparedMovements");
+            entity.HasKey(movement => movement.TransactionId);
+            // One in-doubt distributed transaction per account: the "lock" a prepared participant holds.
+            entity.HasIndex(movement => movement.AccountId).IsUnique().HasFilter("[State] = N'Prepared'");
+            entity.Property(movement => movement.Amount).HasPrecision(18, 2);
+            entity.Property(movement => movement.Purpose).HasMaxLength(20).IsRequired();
+            entity.Property(movement => movement.ReferenceNumber).HasMaxLength(40).IsRequired();
+            entity.Property(movement => movement.State).HasMaxLength(16).IsRequired();
+            entity.Property(movement => movement.Reason).HasMaxLength(200);
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>

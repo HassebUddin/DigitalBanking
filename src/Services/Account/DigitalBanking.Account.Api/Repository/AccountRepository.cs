@@ -152,6 +152,14 @@ public sealed class AccountRepository(RegionalDb<AccountDbContext> db, AccountDi
         return false;
     }
 
+    // Whether a two-phase commit has prepared on this account and not been decided yet (the account is reserved).
+    public async Task<bool> HasPreparedMovementAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        var region = await directory.RegionOfAsync(accountId, cancellationToken);
+        return region is not null && await db.For(region).PreparedMovements
+            .AnyAsync(movement => movement.AccountId == accountId && movement.State == DigitalBanking.Contracts.TwoPhaseStates.Prepared, cancellationToken);
+    }
+
     public void AddLedgerEntries(params LedgerEntry[] entries)
     {
         db.Current.LedgerEntries.AddRange(entries);

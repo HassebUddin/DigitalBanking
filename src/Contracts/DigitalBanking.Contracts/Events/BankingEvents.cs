@@ -37,6 +37,10 @@ public sealed record AccountCreatedEvent : IntegrationEvent
     public Guid UserId { get; init; }
     public string AccountNumber { get; init; } = string.Empty;
     public string AccountType { get; init; } = string.Empty;
+
+    // Where the account lives: its province and its hash shard there ("punjab:s2"), for the global index.
+    public string Region { get; init; } = string.Empty;
+    public string Shard { get; init; } = string.Empty;
 }
 
 public sealed record MoneyDepositedEvent : IntegrationEvent
@@ -124,4 +128,15 @@ public sealed record NotificationSentEvent : IntegrationEvent
     public string Channel { get; init; } = string.Empty;
     public string Title { get; init; } = string.Empty;
     public string Body { get; init; } = string.Empty;
+}
+
+// A loan paid into an account after a two-phase commit between the transaction, account and audit services.
+public sealed record LoanDisbursedEvent : IntegrationEvent
+{
+    public Guid TransactionId { get; init; }
+    public Guid AccountId { get; init; }
+    public Guid UserId { get; init; }
+    public Guid ApprovedBy { get; init; }
+    public decimal Amount { get; init; }
+    public string ReferenceNumber { get; init; } = string.Empty;
 }

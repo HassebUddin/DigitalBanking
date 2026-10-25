@@ -8,6 +8,10 @@
 # `docker stop digitalbanking-sql-punjab-a` takes only Punjab_A down: the coordinator promotes Punjab_B.
 # Stopping both containers of a province takes that province down (its customers get "retry later"),
 # while the other provinces keep working. `docker start ...` brings a node back; it rejoins as the replica.
+#
+# -Consensus: the cluster coordinator is elected through the 3-member etcd cluster (Raft) instead of being the one
+# Admin process. Start more coordinators with start-admin-replica.ps1; stop the leader and another one takes over.
+param([switch]$Consensus)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
@@ -34,5 +38,9 @@ ${env:RegionalDatabases__ProvinceServers__balochistan-a} = "localhost,14344"
 ${env:RegionalDatabases__ProvinceServers__balochistan-b} = "localhost,14354"
 $env:RegionalDatabases__UserId = "sa"
 $env:RegionalDatabases__Password = "DigitalBank_2026!"
+if ($Consensus) {
+    $env:Consensus__Etcd__Endpoints = "http://localhost:2379,http://localhost:22379,http://localhost:32379"
+    $env:Consensus__InstanceId = "admin-1"
+}
 
 & (Join-Path $root "start-all.ps1")

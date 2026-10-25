@@ -4,6 +4,8 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DigitalBanking.BuildingBlocks.Regions;
@@ -39,6 +41,85 @@ public static class DatabaseBootstrap
         if (!await TableExistsAsync(dbContext, schema, table, cancellationToken))
         {
             await creator.CreateTablesAsync(cancellationToken);
+        }
+
+        await AddMissingTablesAndColumnsAsync(dbContext, cancellationToken);
+    }
+
+    // Tables and columns added to a model after its schema was first created (e.g. the two-phase-commit tables, or
+    // BankTransaction.LogicalTimestamp). EF diffs an empty model against the current one, and only the operations for
+    // what this database is missing are run. A new NOT NULL column gets its type's default for the existing rows.
+    private static async Task AddMissingTablesAndColumnsAsync(DbContext dbContext, CancellationToken cancellationToken)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        var opened = connection.State != ConnectionState.Open;
+        if (opened)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            var existing = new HashSet<(string Schema, string Table, string Column)>();
+            await using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS";
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    existing.Add((reader.GetString(0).ToLowerInvariant(), reader.GetString(1).ToLowerInvariant(), reader.GetString(2).ToLowerInvariant()));
+                }
+            }
+
+            var tables = existing.Select(column => (column.Schema, column.Table)).ToHashSet();
+            var model = dbContext.GetService<IDesignTimeModel>().Model;
+            var operations = dbContext.GetService<IMigrationsModelDiffer>().GetDifferences(null, model.GetRelationalModel());
+            var pending = new List<MigrationOperation>();
+            var newTables = new HashSet<(string, string)>();
+            foreach (var create in operations.OfType<CreateTableOperation>())
+            {
+                var key = ((create.Schema ?? "dbo").ToLowerInvariant(), create.Name.ToLowerInvariant());
+                if (!tables.Contains(key))
+                {
+                    newTables.Add(key);
+                    pending.Add(create);
+                    continue;
+                }
+
+                foreach (var column in create.Columns.Where(column => !existing.Contains((key.Item1, key.Item2, column.Name.ToLowerInvariant()))))
+                {
+                    column.Schema = create.Schema;
+                    column.Table = create.Name;
+                    if (!column.IsNullable && column.DefaultValue is null && column.DefaultValueSql is null)
+                    {
+                        column.DefaultValue = column.ClrType == typeof(string) ? string.Empty
+                            : column.ClrType.IsValueType ? Activator.CreateInstance(column.ClrType) : null;
+                    }
+
+                    pending.Add(column);
+                }
+            }
+
+            pending.AddRange(operations.OfType<CreateIndexOperation>()
+                .Where(index => newTables.Contains(((index.Schema ?? "dbo").ToLowerInvariant(), index.Table.ToLowerInvariant()))));
+            if (pending.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var migration in dbContext.GetService<IMigrationsSqlGenerator>().Generate(pending, model))
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = migration.CommandText;
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+        finally
+        {
+            if (opened)
+            {
+                await connection.CloseAsync();
+            }
         }
     }
 

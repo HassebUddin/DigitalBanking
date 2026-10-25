@@ -12,6 +12,11 @@ public sealed class BankTransaction
     public string ReferenceNumber { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
+
+    // Hybrid logical clock at creation (BuildingBlocks/Distributed/HybridLogicalClock): orders transactions by
+    // cause and effect across services, which wall-clock CreatedAtUtc cannot do when machine clocks drift.
+    // 0 on rows written before the clock existed.
+    public long LogicalTimestamp { get; set; }
 }
 
 public sealed class TransferSaga
@@ -36,6 +41,9 @@ public static class TransactionTypes
 
     // Money returned to the sender of a transfer that could not be delivered (rollback).
     public const string Refund = "Refund";
+
+    // A loan paid into a customer's account, approved by staff and committed with two-phase commit.
+    public const string LoanDisbursement = "LoanDisbursement";
 }
 
 public static class TransactionStatuses

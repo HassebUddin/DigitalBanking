@@ -1,3 +1,5 @@
+using System.Data;
+using DigitalBanking.BuildingBlocks.Distributed;
 using DigitalBanking.BuildingBlocks.Outbox;
 using DigitalBanking.BuildingBlocks.Regions;
 using DigitalBanking.Contracts;
@@ -22,6 +24,8 @@ public sealed class TransactionRepository(RegionalDb<TransactionDbContext> db, S
 
     public async Task AddTransactionAsync(BankTransaction transaction, Guid ownerUserId, CancellationToken cancellationToken)
     {
+        // Stamped here, after any event or HTTP response that led to it was merged into the clock.
+        transaction.LogicalTimestamp = HybridLogicalClock.Instance.Now();
         (await db.ForUserAsync(ownerUserId, cancellationToken)).Transactions.Add(transaction);
     }
 
@@ -45,7 +49,8 @@ public sealed class TransactionRepository(RegionalDb<TransactionDbContext> db, S
             Status = TransactionStatuses.Completed,
             ReferenceNumber = $"{transfer.ReferenceNumber}-REFUND",
             Description = $"Refund: {transfer.Description}".Trim(),
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            LogicalTimestamp = HybridLogicalClock.Instance.Now()
         });
     }
 
@@ -106,14 +111,28 @@ public sealed class TransactionRepository(RegionalDb<TransactionDbContext> db, S
     }
 
     // An account's statement: its own activity plus transfers it received.
+    // MVCC: each province is read inside a SNAPSHOT transaction, so the statement sees that province exactly as it
+    // was at one instant (row versions in tempdb), even while transfers keep committing. A snapshot read takes no
+    // shared locks, so a long statement neither blocks nor deadlocks the debits and credits running alongside it,
+    // and it can never show a half-finished set of changes. (Each province has its own snapshot instant.)
+    // Newest first by hybrid logical clock, so cause always sorts before effect even if the clocks drifted.
     public async Task<IReadOnlyList<BankTransaction>> GetTransactionsByAccountAsync(Guid accountId, DateTime fromDateUtc, DateTime toDateUtc, CancellationToken cancellationToken)
     {
-        var transactions = await db.AllAsync(context => context.Transactions
-            .Where(transaction => (transaction.AccountId == accountId || transaction.CounterpartyAccountId == accountId)
-                && transaction.CreatedAtUtc >= fromDateUtc && transaction.CreatedAtUtc <= toDateUtc)
-            .ToListAsync(cancellationToken));
-        return transactions.OrderByDescending(transaction => transaction.CreatedAtUtc).ToList();
+        var transactions = await db.AllAsync(async context =>
+        {
+            await using var snapshot = await context.Database.BeginTransactionAsync(IsolationLevel.Snapshot, cancellationToken);
+            var rows = await context.Transactions.AsNoTracking()
+                .Where(transaction => (transaction.AccountId == accountId || transaction.CounterpartyAccountId == accountId)
+                    && transaction.CreatedAtUtc >= fromDateUtc && transaction.CreatedAtUtc <= toDateUtc)
+                .ToListAsync(cancellationToken);
+            await snapshot.CommitAsync(cancellationToken);
+            return rows;
+        });
+        return transactions.OrderByDescending(CausalOrder).ToList();
     }
+
+    public static long CausalOrder(BankTransaction transaction) =>
+        transaction.LogicalTimestamp != 0 ? transaction.LogicalTimestamp : HybridLogicalClock.FromDateTime(transaction.CreatedAtUtc);
 
     public async Task<(List<BankTransaction> Items, long Total, string Strategy)> SearchTransactionsAsync(TransactionSearchRequest request, int page, int pageSize, CancellationToken cancellationToken)
     {

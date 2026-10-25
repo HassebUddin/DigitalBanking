@@ -62,6 +62,8 @@ public sealed class RabbitMqEventConsumer(
 
             try
             {
+                // Causal order: whatever the handler does is stamped after the event that caused it.
+                Distributed.HybridLogicalClock.Instance.ReceiveFromPayload(payload);
                 await subscription.Handler(payload, stoppingToken);
                 channel.BasicAck(arguments.DeliveryTag, false);
             }

@@ -1,4 +1,6 @@
+import { HttpClient } from '@angular/common/http';
 import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import { AuthService } from '../../core/auth.service';
 import { OpsSparkline } from '../ops-charts';
 import { PROVINCE_COLORS, clock, compact, duration, grouped } from '../ops-format';
 import { ClusterView, DbNodeView, LedgerCheck, PodView, ServicePods } from '../ops.models';
@@ -287,15 +289,67 @@ import { OpsService } from '../ops.service';
           }
 
         </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Leader election (etcd · Raft)</h2>
+          </div>
+          @if (consensus(); as c) {
+            <div class="etcd-grid">
+              <article class="etcd-card coordinator" [class.on]="!!c.leaderId">
+                <span class="kpi-label">Leader</span>
+                <strong class="mono">{{ c.leaderId ?? 'Electing…' }}</strong>
+                <span class="kpi-status" data-level="good"><i></i>Term {{ c.term }}</span>
+              </article>
+              @for (member of c.members; track member.endpoint; let i = $index) {
+                <article class="etcd-card" [class.on]="member.healthy" [class.down]="!member.healthy">
+                  <span class="kpi-label">etcd-{{ i + 1 }}</span>
+                  <strong>{{ member.healthy ? (member.isRaftLeader ? 'Leader' : 'Follower') : 'Down' }}</strong>
+                  <span class="kpi-status" [attr.data-level]="member.healthy ? 'good' : 'critical'"><i></i>{{ member.healthy ? 'Up' : 'Down' }}</span>
+                </article>
+              } @empty {
+                <article class="etcd-card">
+                  <span class="kpi-label">etcd</span>
+                  <strong>Off</strong>
+                </article>
+              }
+            </div>
+          } @else {
+            <p class="muted">Loading consensus status…</p>
+          }
+        </section>
       } @else {
         <div class="panel loading-panel">Connecting to the operations API…</div>
       }
     </div>
-  `
+  `,
+  styles: [`
+    .etcd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0.8rem; }
+    .etcd-card { display: grid; gap: 0.3rem; padding: 0.8rem; border: 1px solid var(--ops-grid); border-radius: 10px; }
+    .etcd-card.on { border-color: rgb(var(--good-rgb) / 0.5); }
+    .etcd-card.down { border-color: rgb(var(--critical-rgb) / 0.6); }
+    .etcd-card.coordinator.on { background: rgb(var(--good-rgb) / 0.08); }
+    .etcd-log { margin: 0.8rem 0 0; padding: 0; list-style: none; font-size: 0.76rem; }
+  `]
 })
 export class InfrastructurePage implements OnDestroy {
   readonly ops = inject(OpsService);
   private readonly release = this.ops.watch();
+  private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
+  readonly consensus = signal<ConsensusView | null>(null);
+  private readonly consensusTimer = setInterval(() => this.loadConsensus(), 2000);
+
+  constructor() {
+    this.loadConsensus();
+  }
+
+  loadConsensus() {
+    this.http.get<{ consensus: ConsensusView }>(`${this.auth.apiUrl}/api/ops/distributed/overview`).subscribe({
+      next: (overview) => this.consensus.set(overview.consensus),
+      error: () => this.consensus.set(null)
+    });
+  }
   readonly o = this.ops.overview;
   readonly compact = compact;
   readonly grouped = grouped;
@@ -390,5 +444,16 @@ export class InfrastructurePage implements OnDestroy {
 
   ngOnDestroy() {
     this.release();
+    clearInterval(this.consensusTimer);
   }
+}
+
+interface ConsensusView {
+  mode: string;
+  instanceId: string;
+  isLeader: boolean;
+  term: number;
+  leaderId: string | null;
+  members: { endpoint: string; healthy: boolean; isRaftLeader: boolean; raftTerm: number | null; raftIndex: number | null }[];
+  history: string[];
 }

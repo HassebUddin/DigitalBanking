@@ -6,6 +6,7 @@ using DigitalBanking.BuildingBlocks.Exceptions;
 using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.BuildingBlocks.Messaging;
 using DigitalBanking.BuildingBlocks.Regions;
+using DigitalBanking.Contracts;
 using DigitalBanking.Contracts.Events;
 using DigitalBanking.BuildingBlocks.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -205,5 +206,34 @@ public sealed class AccountsController(
         if (request.Amount <= 0) throw new ValidationException("Amount must be greater than zero.");
         await accountService.CreditAsync(accountId, request, cancellationToken);
         return NoContent();
+    }
+
+    // Two-phase commit participant (the coordinator is the transaction service).
+    [InternalApiKey]
+    [HttpPost("internal/2pc/prepare")]
+    public async Task<ActionResult<TwoPhaseVoteResponse>> PrepareTwoPhase(TwoPhasePrepareRequest request, [FromServices] TwoPhaseParticipant participant, CancellationToken cancellationToken)
+    {
+        return Ok(await participant.PrepareAsync(request, cancellationToken));
+    }
+
+    [InternalApiKey]
+    [HttpPost("internal/2pc/commit")]
+    public async Task<ActionResult<TwoPhaseAckResponse>> CommitTwoPhase(TwoPhaseDecisionRequest request, [FromServices] TwoPhaseParticipant participant, CancellationToken cancellationToken)
+    {
+        return Ok(await participant.CommitAsync(request, cancellationToken));
+    }
+
+    [InternalApiKey]
+    [HttpPost("internal/2pc/abort")]
+    public async Task<ActionResult<TwoPhaseAckResponse>> AbortTwoPhase(TwoPhaseDecisionRequest request, [FromServices] TwoPhaseParticipant participant, CancellationToken cancellationToken)
+    {
+        return Ok(await participant.AbortAsync(request, cancellationToken));
+    }
+
+    [InternalApiKey]
+    [HttpGet("internal/2pc/in-doubt")]
+    public async Task<ActionResult<IReadOnlyList<TwoPhaseInDoubt>>> InDoubtTwoPhase([FromServices] TwoPhaseParticipant participant, CancellationToken cancellationToken)
+    {
+        return Ok(await participant.InDoubtAsync(cancellationToken));
     }
 }

@@ -65,6 +65,7 @@ export const routes: Routes = [
       { path: 'rules', loadComponent: () => import('./ops/pages/rules-page').then((m) => m.RulesPage) },
       { path: 'infrastructure', loadComponent: () => import('./ops/pages/infrastructure-page').then((m) => m.InfrastructurePage) },
       { path: 'data', loadComponent: () => import('./ops/pages/data-explorer-page').then((m) => m.DataExplorerPage) },
+      { path: 'distributed', loadComponent: () => import('./ops/pages/distributed-page').then((m) => m.DistributedPage) },
       { path: 'banking', loadComponent: () => import('./ops/pages/banking-pages').then((m) => m.BankOverviewPage) },
       { path: 'customers', loadComponent: () => import('./ops/pages/banking-pages').then((m) => m.BankCustomersPage) },
       { path: 'accounts', loadComponent: () => import('./ops/pages/banking-pages').then((m) => m.BankAccountsPage) },

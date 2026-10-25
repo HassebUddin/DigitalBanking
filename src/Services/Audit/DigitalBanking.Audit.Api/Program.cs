@@ -13,6 +13,7 @@ builder.Services.AddBankingServiceDefaults(builder.Configuration, "audit-service
 builder.Services.AddRegionalDbContext<AuditDbContext>();
 builder.Services.AddScoped<IAuditRepository, AuditRepository>();
 builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<TwoPhaseAuditParticipant>();
 builder.Services.AddEventHandler<AuditEventHandler<CustomerRegisteredEvent>>(nameof(CustomerRegisteredEvent));
 builder.Services.AddEventHandler<AuditEventHandler<UserLoggedInEvent>>(nameof(UserLoggedInEvent));
 builder.Services.AddEventHandler<AuditEventHandler<PasswordChangedEvent>>(nameof(PasswordChangedEvent));

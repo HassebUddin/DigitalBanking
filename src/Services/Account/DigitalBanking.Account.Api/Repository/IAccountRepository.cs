@@ -16,6 +16,7 @@ public interface IAccountRepository
     Task<AccountLock?> LockAccountAsync(Guid accountId, CancellationToken cancellationToken);
     Task<bool> LedgerPostingExistsAsync(string idempotencyKey, CancellationToken cancellationToken);
     Task<bool> PostingAppliedAsync(Guid accountId, string idempotencyKey, CancellationToken cancellationToken);
+    Task<bool> HasPreparedMovementAsync(Guid accountId, CancellationToken cancellationToken);
     void AddLedgerEntries(params LedgerEntry[] entries);
     Task WaitForStandbyAsync(CancellationToken cancellationToken);
 

@@ -35,6 +35,9 @@ public static class LedgerAccounts
     // Money between two customer accounts (possibly in different provinces). Zero bank-wide once every transfer has completed.
     public const string Clearing = "GL:CLEARING";
 
+    // Loans the bank has paid out (asset side): a disbursement debits it and credits the customer.
+    public const string Loans = "GL:LOANS";
+
     // Balances that existed before the ledger.
     public const string Opening = "GL:OPENING";
 
@@ -49,15 +52,17 @@ public static class MovementPurposes
     public const string TransferIn = "TransferIn";
     public const string Refund = "Refund";
     public const string Opening = "Opening";
+    public const string LoanDisbursement = "LoanDisbursement";
 
     public static string CounterAccount(string purpose) => purpose switch
     {
         Deposit or Withdrawal => LedgerAccounts.Cash,
         Opening => LedgerAccounts.Opening,
+        LoanDisbursement => LedgerAccounts.Loans,
         _ => LedgerAccounts.Clearing
     };
 
     public static string Normalize(string? purpose, string fallback) =>
-        new[] { Deposit, Withdrawal, TransferOut, TransferIn, Refund, Opening }
+        new[] { Deposit, Withdrawal, TransferOut, TransferIn, Refund, Opening, LoanDisbursement }
             .FirstOrDefault(known => string.Equals(known, purpose?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? fallback;
 }

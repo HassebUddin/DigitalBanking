@@ -32,6 +32,7 @@ const OPS_NAV: NavItem[] = [
   { path: '/admin/regions', label: 'Regions & customers', icon: 'map' },
   { path: '/admin/health', label: 'Load & health', icon: 'server' },
   { path: '/admin/data', label: 'Database explorer', icon: 'database' },
+  { path: '/admin/distributed', label: 'Distributed systems', icon: 'key' },
   { path: '/admin/logs', label: 'Logs explorer', icon: 'list' },
   { path: '/admin/rules', label: 'Traffic rules', icon: 'shield' }
 ];

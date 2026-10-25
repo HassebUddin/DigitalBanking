@@ -29,6 +29,11 @@ public sealed class RabbitMqEventPublisher(RabbitMqConnection connection, IOptio
     public Task PublishAsync<TEvent>(TEvent integrationEvent, CancellationToken cancellationToken = default)
         where TEvent : IntegrationEvent
     {
+        if (integrationEvent.LogicalTimestamp == 0)
+        {
+            integrationEvent.LogicalTimestamp = Distributed.HybridLogicalClock.Instance.Now();
+        }
+
         var payload = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType(), JsonOptions);
         return PublishAsync(typeof(TEvent).Name, payload, cancellationToken);
     }

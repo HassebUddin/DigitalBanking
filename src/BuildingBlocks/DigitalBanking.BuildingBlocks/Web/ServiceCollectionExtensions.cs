@@ -1,5 +1,6 @@
 using DigitalBanking.BuildingBlocks.Authentication;
 using DigitalBanking.BuildingBlocks.Caching;
+using DigitalBanking.BuildingBlocks.Distributed;
 using DigitalBanking.BuildingBlocks.Messaging;
 using DigitalBanking.BuildingBlocks.Observability;
 using DigitalBanking.BuildingBlocks.Outbox;
@@ -20,6 +21,10 @@ public static class ServiceCollectionExtensions
         services.AddJwtAuthentication(configuration);
         services.AddRabbitMq(configuration, queueName);
         services.AddRedisCache(configuration);
+        services.AddSingleton<ProvinceShardMap>();
+        // Every service-to-service HTTP call carries the hybrid logical clock (X-Hlc), both ways.
+        services.AddTransient<HlcPropagationHandler>();
+        services.ConfigureHttpClientDefaults(http => http.AddHttpMessageHandler<HlcPropagationHandler>());
         services.AddBankingTelemetry(configuration, ServiceName(queueName));
         services.AddControllers();
         services.AddEndpointsApiExplorer();
@@ -37,6 +42,7 @@ public static class ServiceCollectionExtensions
     public static WebApplication UseBankingServicePipeline(this WebApplication app)
     {
         app.UseBankingTelemetry();
+        app.UseMiddleware<HlcMiddleware>();
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         app.UseSwagger();
         app.UseSwaggerUI();

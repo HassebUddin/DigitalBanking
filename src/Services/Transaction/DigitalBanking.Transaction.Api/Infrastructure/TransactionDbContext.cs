@@ -8,6 +8,7 @@ public sealed class TransactionDbContext(DbContextOptions<TransactionDbContext> 
 {
     public DbSet<BankTransaction> Transactions => Set<BankTransaction>();
     public DbSet<TransferSaga> TransferSagas => Set<TransferSaga>();
+    public DbSet<DistributedTransaction> DistributedTransactions => Set<DistributedTransaction>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -32,6 +33,24 @@ public sealed class TransactionDbContext(DbContextOptions<TransactionDbContext> 
             entity.Property(saga => saga.State).HasMaxLength(32).IsRequired();
             entity.Property(saga => saga.Amount).HasPrecision(18, 2);
             entity.Property(saga => saga.DestinationAccountNumber).HasMaxLength(32);
+        });
+
+        // Two-phase-commit coordinator log (added to existing databases by DatabaseBootstrap).
+        modelBuilder.Entity<DistributedTransaction>(entity =>
+        {
+            entity.HasKey(transaction => transaction.Id);
+            entity.HasIndex(transaction => new { transaction.State, transaction.CreatedAtUtc });
+            entity.Property(transaction => transaction.Kind).HasMaxLength(32).IsRequired();
+            entity.Property(transaction => transaction.AccountNumber).HasMaxLength(20).IsRequired();
+            entity.Property(transaction => transaction.Amount).HasPrecision(18, 2);
+            entity.Property(transaction => transaction.Region).HasMaxLength(32).IsRequired();
+            entity.Property(transaction => transaction.ReferenceNumber).HasMaxLength(40).IsRequired();
+            entity.Property(transaction => transaction.Description).HasMaxLength(300);
+            entity.Property(transaction => transaction.State).HasMaxLength(16).IsRequired();
+            entity.Property(transaction => transaction.AccountVote).HasMaxLength(16);
+            entity.Property(transaction => transaction.AuditVote).HasMaxLength(16);
+            entity.Property(transaction => transaction.AbortReason).HasMaxLength(300);
+            entity.Property(transaction => transaction.Log).IsRequired();
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>

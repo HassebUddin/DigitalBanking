@@ -18,17 +18,20 @@ public sealed record CustomerSearchResult(
 /// <summary>Search seam for regional customers. SQL fan-out today; an Elasticsearch implementation can replace it later.</summary>
 public interface ICustomerSearch
 {
-    Task<CustomerSearchResult> SearchAsync(string? query, string? province, string? city, int take, int page, CancellationToken cancellationToken);
+    Task<CustomerSearchResult> SearchAsync(string? query, string? province, string? city, int take, int page, CancellationToken cancellationToken, bool useBloom = true);
 }
 
-/// <summary>Queries every regional cluster in parallel, preferring in-sync replicas, and merges the hits.</summary>
-public sealed partial class SqlCustomerSearch(RegionalDataPlane dataPlane) : ICustomerSearch
+/// <summary>
+/// Queries every regional cluster in parallel, preferring in-sync replicas, and merges the hits. A search for one
+/// full CNIC is a semi-join instead: the provinces' Bloom filters (CnicBloomIndex) pick the provinces worth asking.
+/// </summary>
+public sealed partial class SqlCustomerSearch(RegionalDataPlane dataPlane, Distributed.CnicBloomIndex bloom) : ICustomerSearch
 {
     // Across several provinces each one returns its first (page + 1) pages and the merge keeps the right slice,
     // so deep pages of an all-regions list are capped; a single province pages with OFFSET as deep as needed.
     private const int MaxMergedPages = 200;
 
-    public async Task<CustomerSearchResult> SearchAsync(string? query, string? province, string? city, int take, int page, CancellationToken cancellationToken)
+    public async Task<CustomerSearchResult> SearchAsync(string? query, string? province, string? city, int take, int page, CancellationToken cancellationToken, bool useBloom = true)
     {
         var watch = Stopwatch.StartNew();
         var text = query?.Trim() ?? string.Empty;
@@ -43,7 +46,20 @@ public sealed partial class SqlCustomerSearch(RegionalDataPlane dataPlane) : ICu
                 ? PakistanGeo.Provinces.Select(item => item.Name).ToList()
                 : [PakistanGeo.FindProvince(province)?.Name ?? province];
 
-        var single = regions.Count == 1;
+        // Bloom semi-join: a province whose filter says "definitely not here" is not queried at all.
+        var skipped = new List<RegionSearchStat>();
+        var strategy = plan.Strategy;
+        if (useBloom && regions.Count > 1 && plan.OrderBy == "Cnic" && Distributed.CnicBloomIndex.NormalizeCnic(text) is { } cnic)
+        {
+            var probes = bloom.Probe(cnic, regions);
+            skipped = probes.Where(probe => !probe.MightContain)
+                .Select(probe => new RegionSearchStat(probe.Province, "-", "skipped by Bloom filter", 0, 0, 0, null)).ToList();
+            regions = probes.Where(probe => probe.MightContain).Select(probe => probe.Province).ToList();
+            strategy = $"Bloom semi-join: {regions.Count} of {probes.Count} provinces queried" +
+                (probes.Any(probe => !probe.Fresh) ? " (a filter not current: that province searched anyway)" : string.Empty);
+        }
+
+        var single = regions.Count <= 1;
         if (!single)
         {
             page = Math.Min(page, MaxMergedPages - 1);
@@ -67,8 +83,8 @@ public sealed partial class SqlCustomerSearch(RegionalDataPlane dataPlane) : ICu
             total = Math.Min(total, (long)MaxMergedPages * take);
         }
 
-        return new CustomerSearchResult((single ? items : items.Skip(page * take)).Take(take).ToList(), "SQL Server · regional fan-out", plan.Strategy,
-            Math.Round(watch.Elapsed.TotalMilliseconds, 1), results.Select(result => result.Stat).ToList(), page, take, total);
+        return new CustomerSearchResult((single ? items : items.Skip(page * take)).Take(take).ToList(), "SQL Server · regional fan-out", strategy,
+            Math.Round(watch.Elapsed.TotalMilliseconds, 1), results.Select(result => result.Stat).Concat(skipped).ToList(), page, take, total);
     }
 
     private async Task<(List<CustomerHit> Hits, RegionSearchStat Stat)> SearchRegionAsync(

@@ -33,7 +33,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
 
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
         await transactionRepository.WaitForStandbyAsync(strict: false, cancellationToken);
-        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc, LogicalTimestamp = transaction.LogicalTimestamp };
     }
 
     public async Task<TransactionResponse> WithdrawTransactionAsync(Guid userId, bool isAdmin, WithdrawRequest request, CancellationToken cancellationToken)
@@ -60,7 +60,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
 
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
         await transactionRepository.WaitForStandbyAsync(strict: false, cancellationToken);
-        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc, LogicalTimestamp = transaction.LogicalTimestamp };
     }
 
     public async Task<TransactionResponse> TransferTransactionAsync(Guid userId, bool isAdmin, TransferRequest request, CancellationToken cancellationToken, Guid? transferId = null)
@@ -130,7 +130,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
                 transactionRepository.AddTransactionEvent(new MoneyTransferredEvent { TransactionId = transaction.Id, SourceAccountId = sourceAccount.Id, DestinationAccountId = destinationAccount.Id, SourceUserId = sourceAccount.UserId, DestinationUserId = destinationAccount.UserId, Amount = request.Amount, ReferenceNumber = transaction.ReferenceNumber });
                 await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
                 await transactionRepository.WaitForStandbyAsync(strict: false, cancellationToken);
-                return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+                return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc, LogicalTimestamp = transaction.LogicalTimestamp };
             }
             catch (ServiceUnavailableException)
             {
@@ -180,7 +180,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         transactionRepository.AddTransferSaga(saga);
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
         await transactionRepository.WaitForStandbyAsync(strict: true, cancellationToken);
-        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc, LogicalTimestamp = transaction.LogicalTimestamp };
     }
 
     // Hands an in-flight transfer to the recovery job, which retries it every few seconds.
@@ -189,7 +189,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         saga.RetryAfterUtc = DateTime.UtcNow.AddSeconds(2);
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
         await transactionRepository.WaitForStandbyAsync(strict: false, cancellationToken);
-        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
+        return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc, LogicalTimestamp = transaction.LogicalTimestamp };
     }
 
     public async Task<PagedResult<TransactionResponse>> SearchTransactionsAsync(TransactionSearchRequest request, int page, int pageSize, CancellationToken cancellationToken)
@@ -197,7 +197,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         (page, pageSize) = PagedResult<TransactionResponse>.Normalize(page, pageSize);
         var watch = System.Diagnostics.Stopwatch.StartNew();
         var (transactions, total, strategy) = await transactionRepository.SearchTransactionsAsync(request, page, pageSize, cancellationToken);
-        var items = transactions.Select(transaction => new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc }).ToList();
+        var items = transactions.Select(transaction => new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc, LogicalTimestamp = transaction.LogicalTimestamp }).ToList();
         return new PagedResult<TransactionResponse>(items, total, page, pageSize) { Strategy = strategy, TookMs = Math.Round(watch.Elapsed.TotalMilliseconds, 1) };
     }
 
@@ -205,7 +205,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
     {
         IReadOnlyList<Guid> ownAccountIds = isAdmin ? [] : await accountLedgerClient.GetAccountIdsOfUserAsync(userId, cancellationToken);
         var transactions = await transactionRepository.GetTransactionsAsync(userId, isAdmin, ownAccountIds, request, cancellationToken);
-        return transactions.Select(transaction => new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc }).ToList();
+        return transactions.Select(transaction => new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc, LogicalTimestamp = transaction.LogicalTimestamp }).ToList();
     }
 
     public async Task<StatementResponse> GetTransactionStatementAsync(Guid userId, bool isAdmin, Guid accountId, DateTime fromDateUtc, DateTime toDateUtc, CancellationToken cancellationToken)
@@ -219,14 +219,14 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
             AccountId = accountId,
             FromDateUtc = fromDateUtc,
             ToDateUtc = toDateUtc,
-            // Money in: deposits and transfers received by this account. Money out: everything it paid.
+            // Money in: deposits, loan disbursements and transfers received by this account. Money out: everything it paid.
             // Only money that really moved: rolled-back (Compensated) transfers and their refunds are left out.
             TotalDeposits = transactions.Where(transaction => transaction.Status == TransactionStatuses.Completed
-                && (transaction.TransactionType == TransactionTypes.Deposit
+                && (transaction.TransactionType is TransactionTypes.Deposit or TransactionTypes.LoanDisbursement
                     || (transaction.TransactionType == TransactionTypes.Transfer && transaction.CounterpartyAccountId == accountId))).Sum(transaction => transaction.Amount),
             TotalWithdrawals = transactions.Where(transaction => transaction.Status == TransactionStatuses.Completed
                 && (transaction.TransactionType is TransactionTypes.Withdrawal or TransactionTypes.Transfer) && transaction.AccountId == accountId).Sum(transaction => transaction.Amount),
-            Transactions = transactions.Select(transaction => new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc }).ToList()
+            Transactions = transactions.Select(transaction => new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc, LogicalTimestamp = transaction.LogicalTimestamp }).ToList()
         };
     }
 }

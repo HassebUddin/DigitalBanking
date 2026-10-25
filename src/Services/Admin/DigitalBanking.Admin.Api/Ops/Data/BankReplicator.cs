@@ -29,7 +29,7 @@ public sealed record WalBatch(string Source, long FromVersion, long ToVersion, D
 /// refuse banking writes unless it currently holds the lease. Together these give one writable primary per
 /// province at any time (no split brain), even when the coordinator and a node lose sight of each other.
 /// </summary>
-public sealed class BankReplicator
+public sealed class BankReplicator(Consensus.CoordinatorLeadership leadership)
 {
     // A primary keeps accepting writes this long after its last lease renewal. Failover waits this long
     // after losing a primary, so the old primary has fenced itself before the standby is promoted.
@@ -48,7 +48,10 @@ public sealed class BankReplicator
                     Id int NOT NULL CONSTRAINT PK_Lease PRIMARY KEY CONSTRAINT CK_Lease_Single CHECK (Id = 1),
                     Node nvarchar(64) NOT NULL, Role nvarchar(16) NOT NULL, Epoch bigint NOT NULL,
                     LeaseUntilUtc datetime2 NULL, UpdatedAtUtc datetime2 NOT NULL);
-            IF NOT EXISTS (SELECT 1 FROM ops.Lease) INSERT ops.Lease VALUES (1, @node, N'replica', 0, NULL, SYSUTCDATETIME());
+            IF NOT EXISTS (SELECT 1 FROM ops.Lease) INSERT ops.Lease (Id, Node, Role, Epoch, LeaseUntilUtc, UpdatedAtUtc) VALUES (1, @node, N'replica', 0, NULL, SYSUTCDATETIME());
+            -- Highest coordinator term (etcd leader revision) this node has accepted a lease change from.
+            IF COL_LENGTH(N'ops.Lease', N'CoordinatorTerm') IS NULL
+                ALTER TABLE ops.Lease ADD CoordinatorTerm bigint NOT NULL CONSTRAINT DF_Lease_CoordinatorTerm DEFAULT 0;
             IF OBJECT_ID(N'ops.ReplicationState') IS NULL
                 CREATE TABLE ops.ReplicationState (
                     Id int NOT NULL CONSTRAINT PK_ReplicationState PRIMARY KEY CONSTRAINT CK_ReplicationState_Single CHECK (Id = 1),
@@ -105,15 +108,39 @@ public sealed class BankReplicator
         }
     }
 
-    /// <summary>Grants or extends the primary lease. Refused (false) if the node already saw a newer epoch.</summary>
+    private readonly ConcurrentDictionary<string, bool> termColumnReady = new(StringComparer.OrdinalIgnoreCase);
+
+    // A node that was unreachable when the others were prepared still gets the column before its first lease change.
+    private async Task EnsureTermColumnAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
+        var key = $"{connection.DataSource}/{connection.Database}";
+        if (termColumnReady.ContainsKey(key))
+        {
+            return;
+        }
+
+        await ExecuteAsync(connection, """
+            IF OBJECT_ID(N'ops.Lease') IS NOT NULL AND COL_LENGTH(N'ops.Lease', N'CoordinatorTerm') IS NULL
+                ALTER TABLE ops.Lease ADD CoordinatorTerm bigint NOT NULL CONSTRAINT DF_Lease_CoordinatorTerm DEFAULT 0;
+            """, cancellationToken);
+        termColumnReady[key] = true;
+    }
+
+    /// <summary>
+    /// Grants or extends the primary lease. Refused (false) if the node already saw a newer epoch, or a newer
+    /// coordinator term: a deposed coordinator that has not noticed yet can no longer keep a primary alive.
+    /// Term 0 is the standalone coordinator (no etcd), which has no rival to be fenced against.
+    /// </summary>
     public async Task<bool> RenewPrimaryAsync(SqlConnection connection, string nodeName, long epoch, CancellationToken cancellationToken)
     {
+        await EnsureTermColumnAsync(connection, cancellationToken);
         return await ExecuteAsync(connection, """
             UPDATE ops.Lease
             SET Node = @node, Role = N'primary', Epoch = @epoch,
-                LeaseUntilUtc = DATEADD(millisecond, @ttl, SYSUTCDATETIME()), UpdatedAtUtc = SYSUTCDATETIME()
-            WHERE Id = 1 AND Epoch <= @epoch
-            """, cancellationToken, ("@node", nodeName), ("@epoch", epoch), ("@ttl", (int)LeaseTtl.TotalMilliseconds)) == 1;
+                LeaseUntilUtc = DATEADD(millisecond, @ttl, SYSUTCDATETIME()), UpdatedAtUtc = SYSUTCDATETIME(),
+                CoordinatorTerm = CASE WHEN @term > CoordinatorTerm THEN @term ELSE CoordinatorTerm END
+            WHERE Id = 1 AND Epoch <= @epoch AND (@term = 0 OR CoordinatorTerm <= @term)
+            """, cancellationToken, ("@node", nodeName), ("@epoch", epoch), ("@ttl", (int)LeaseTtl.TotalMilliseconds), ("@term", leadership.Term)) == 1;
     }
 
     /// <summary>
@@ -128,10 +155,12 @@ public sealed class BankReplicator
     /// <summary>Takes the lease away at once: from now on the node refuses banking writes.</summary>
     public async Task DemoteAsync(SqlConnection connection, string nodeName, long epoch, CancellationToken cancellationToken)
     {
+        await EnsureTermColumnAsync(connection, cancellationToken);
         await ExecuteAsync(connection, """
-            UPDATE ops.Lease SET Node = @node, Role = N'replica', Epoch = @epoch, LeaseUntilUtc = NULL, UpdatedAtUtc = SYSUTCDATETIME()
-            WHERE Id = 1 AND (Role <> N'replica' OR Epoch <> @epoch OR LeaseUntilUtc IS NOT NULL)
-            """, cancellationToken, ("@node", nodeName), ("@epoch", epoch));
+            UPDATE ops.Lease SET Node = @node, Role = N'replica', Epoch = @epoch, LeaseUntilUtc = NULL, UpdatedAtUtc = SYSUTCDATETIME(),
+                CoordinatorTerm = CASE WHEN @term > CoordinatorTerm THEN @term ELSE CoordinatorTerm END
+            WHERE Id = 1 AND (Role <> N'replica' OR Epoch <> @epoch OR LeaseUntilUtc IS NOT NULL) AND (@term = 0 OR CoordinatorTerm <= @term)
+            """, cancellationToken, ("@node", nodeName), ("@epoch", epoch), ("@term", leadership.Term));
     }
 
     /// <summary>

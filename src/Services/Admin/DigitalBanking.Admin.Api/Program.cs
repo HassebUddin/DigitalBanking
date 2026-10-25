@@ -2,8 +2,12 @@ using DigitalBanking.Admin.Api.Application;
 using DigitalBanking.Admin.Api.Infrastructure;
 using DigitalBanking.Admin.Api.Ops;
 using DigitalBanking.Admin.Api.Ops.Compute;
+using DigitalBanking.Admin.Api.Ops.Consensus;
 using DigitalBanking.Admin.Api.Ops.Data;
+using DigitalBanking.Admin.Api.Ops.Distributed;
+using DigitalBanking.BuildingBlocks.Messaging;
 using DigitalBanking.BuildingBlocks.Regions;
+using DigitalBanking.Contracts.Events;
 using DigitalBanking.BuildingBlocks.Web;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +29,13 @@ builder.Services.AddSingleton<ICustomerSearch, SqlCustomerSearch>();
 builder.Services.AddSingleton<BankReplicator>();
 builder.Services.AddSingleton<WriteAheadLog>();
 AddHostedSingleton<OpsEventLog>(builder.Services);
+// Leader election among Admin instances through etcd (Raft); without etcd configured this instance always leads.
+AddHostedSingleton<CoordinatorLeadership>(builder.Services);
+// Redis global account index, fed from the account service's outbox (AccountCreatedEvent).
+builder.Services.AddSingleton<GlobalIndexService>();
+builder.Services.AddEventHandler<GlobalIndexProjector>(nameof(AccountCreatedEvent));
+// Bloom filters of each province's CNICs, for semi-join customer searches.
+AddHostedSingleton<CnicBloomIndex>(builder.Services);
 AddHostedSingleton<RegionalDataPlane>(builder.Services);
 AddHostedSingleton<PodSupervisor>(builder.Services);
 AddHostedSingleton<SimulationEngine>(builder.Services);

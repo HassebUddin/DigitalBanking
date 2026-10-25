@@ -74,6 +74,10 @@ public sealed class RegionCluster
     public volatile bool LeaseSuspended;
     public bool WaitingForLease { get; set; }
 
+    // The coordinator term (etcd leadership) under which this instance last loaded the roles and epoch from
+    // ops.RegionPrimaries. A new leader re-reads them before acting, since the previous leader may have failed over.
+    public long AdoptedTerm { get; set; } = -1;
+
     // Real banking tables (account, txn, customer, notify, audit), shipped by change tracking.
     public long BankRowsShipped { get; set; }
     public DateTime? BankLastShippedUtc { get; set; }
@@ -126,6 +130,7 @@ public sealed class RegionalDataPlane(
     BankReplicator bank,
     WriteAheadLog wal,
     RegionalDatabaseOptions regionalOptions,
+    Consensus.CoordinatorLeadership leadership,
     ILogger<RegionalDataPlane> logger) : BackgroundService
 {
     private static readonly string[] BranchAreas =
@@ -253,7 +258,12 @@ public sealed class RegionalDataPlane(
             }
 
             cluster.AutoFailover = states.TryGetValue(cluster.Province.Name, out var state) ? state.AutoFailover : true;
-            await SaveStateAsync(cluster, cancellationToken);
+            // A follower must not publish routing: what it loaded may already be stale against the leader's failovers.
+            if (leadership.IsLeader)
+            {
+                await SaveStateAsync(cluster, cancellationToken);
+                cluster.AdoptedTerm = leadership.Term;
+            }
 
             foreach (var node in cluster.Nodes.Where(node => node.Status == "online"))
             {
@@ -266,7 +276,7 @@ public sealed class RegionalDataPlane(
         }
 
         // Last, after the slow startup work, so the leases are fresh when the health loop takes over renewing them.
-        foreach (var cluster in clusters.Values)
+        foreach (var cluster in clusters.Values.Where(_ => leadership.IsLeader))
         {
             await RenewLeaseAsync(cluster, cancellationToken);
         }
@@ -496,6 +506,7 @@ public sealed class RegionalDataPlane(
 
     public async Task TakeOfflineAsync(string nodeName, CancellationToken cancellationToken)
     {
+        leadership.EnsureLeader();
         var node = Node(nodeName);
         var role = node.Role;
         events.Critical("database", node.Name, $"{node.Name} ({role}) taken offline by admin. Simulated zone outage.");
@@ -507,6 +518,7 @@ public sealed class RegionalDataPlane(
 
     public async Task BringOnlineAsync(string nodeName, CancellationToken cancellationToken)
     {
+        leadership.EnsureLeader();
         var node = Node(nodeName);
         await using var master = new SqlConnection(regionalOptions.MasterConnectionStringFor(node.Database));
         await master.OpenAsync(cancellationToken);
@@ -521,6 +533,7 @@ public sealed class RegionalDataPlane(
 
     public async Task SwitchoverAsync(string province, string reason, CancellationToken cancellationToken)
     {
+        leadership.EnsureLeader();
         var cluster = Cluster(province);
         await cluster.Gate.WaitAsync(cancellationToken);
         await cluster.ShipGate.WaitAsync(cancellationToken);
@@ -569,6 +582,7 @@ public sealed class RegionalDataPlane(
     // Asynchronous: faster, but a failover can lose what the standby had not received yet.
     public async Task SetSynchronousCommitAsync(bool enabled, CancellationToken cancellationToken)
     {
+        leadership.EnsureLeader();
         await using var connection = new SqlConnection(regionalOptions.CentralConnectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = new SqlCommand("UPDATE ops.ReplicationSettings SET SynchronousCommit = @on, UpdatedAtUtc = SYSUTCDATETIME() WHERE Id = 1", connection);
@@ -584,6 +598,7 @@ public sealed class RegionalDataPlane(
     // If it is the primary, its lease runs out, it fences itself, and only then is the standby promoted.
     public void SetPartition(string nodeName, bool enabled)
     {
+        leadership.EnsureLeader();
         var node = Node(nodeName);
         node.Partitioned = enabled;
         if (enabled)
@@ -599,6 +614,7 @@ public sealed class RegionalDataPlane(
 
     public async Task ForceFailoverAsync(string province, CancellationToken cancellationToken)
     {
+        leadership.EnsureLeader();
         var cluster = Cluster(province);
         await cluster.Gate.WaitAsync(cancellationToken);
         await cluster.ShipGate.WaitAsync(cancellationToken);
@@ -638,6 +654,7 @@ public sealed class RegionalDataPlane(
 
     public async Task SetMaintenanceAsync(string nodeName, bool enabled, CancellationToken cancellationToken)
     {
+        leadership.EnsureLeader();
         var node = Node(nodeName);
         var cluster = ClusterOf(node);
         if (enabled && node.Role == "primary")
@@ -666,6 +683,7 @@ public sealed class RegionalDataPlane(
 
     public async Task ConfigureAsync(string province, bool? autoFailover, bool? replicationPaused, CancellationToken cancellationToken)
     {
+        leadership.EnsureLeader();
         var cluster = Cluster(province);
         if (autoFailover is { } auto)
         {
@@ -691,6 +709,7 @@ public sealed class RegionalDataPlane(
     /// <summary>Brings every node online, ends maintenance and resumes replication with auto-failover on.</summary>
     public async Task ResetAsync(CancellationToken cancellationToken)
     {
+        leadership.EnsureLeader();
         foreach (var node in clusters.Values.SelectMany(cluster => cluster.Nodes))
         {
             try
@@ -784,7 +803,21 @@ public sealed class RegionalDataPlane(
         {
             try
             {
-                await CheckClusterAsync(cluster, stoppingToken);
+                // Only the elected coordinator renews leases and fails over (see CoordinatorLeadership).
+                if (!leadership.IsLeader)
+                {
+                    cluster.AdoptedTerm = -1;
+                    await ObserveClusterAsync(cluster, stoppingToken);
+                }
+                else
+                {
+                    if (cluster.AdoptedTerm != leadership.Term)
+                    {
+                        await AdoptTopologyAsync(cluster, stoppingToken);
+                    }
+
+                    await CheckClusterAsync(cluster, stoppingToken);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -797,6 +830,44 @@ public sealed class RegionalDataPlane(
 
             await Task.Delay(1_000, stoppingToken).ContinueWith(_ => { }, CancellationToken.None);
         }
+    }
+
+    // A follower changes nothing, but its console still shows the truth: each node's role and lease as the leader
+    // left them in ops.Lease, and whether the node answers at all.
+    private async Task ObserveClusterAsync(RegionCluster cluster, CancellationToken cancellationToken)
+    {
+        await Task.WhenAll(cluster.Nodes.Select(async node =>
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(3));
+            try
+            {
+                await using var connection = new SqlConnection(node.ConnectionString);
+                await connection.OpenAsync(deadline.Token);
+                await using var command = new SqlCommand(
+                    "SELECT Role, Epoch, LeaseUntilUtc, SYSUTCDATETIME() FROM ops.Lease WHERE Id = 1", connection) { CommandTimeout = 2 };
+                await using var reader = await command.ExecuteReaderAsync(deadline.Token);
+                if (await reader.ReadAsync(deadline.Token))
+                {
+                    node.Role = reader.GetString(0) == "primary" ? "primary" : "replica";
+                    cluster.Epoch = Math.Max(cluster.Epoch, reader.GetInt64(1));
+                    // Measured against the database's own clock, then mapped onto ours.
+                    node.LeaseRenewedUtc = reader.IsDBNull(2) ? null
+                        : DateTime.UtcNow + (reader.GetDateTime(2) - reader.GetDateTime(3)) - BankReplicator.LeaseTtl;
+                }
+
+                node.Status = "online";
+                node.Failures = 0;
+                node.LastError = null;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                node.Status = "down";
+                node.LastError = exception.Message;
+            }
+
+            node.LastCheckUtc = DateTime.UtcNow;
+        }));
     }
 
     // A probe gets at most 3.5 s: a stopped node can hang a connect much longer, and its partner's lease
@@ -1003,6 +1074,13 @@ public sealed class RegionalDataPlane(
     {
         for (var pass = 0; !stoppingToken.IsCancellationRequested; pass++)
         {
+            if (!leadership.IsLeader || cluster.AdoptedTerm != leadership.Term)
+            {
+                // A follower ships nothing: two coordinators replicating into one standby would interleave.
+                await Task.Delay(500, stoppingToken).ContinueWith(_ => { }, CancellationToken.None);
+                continue;
+            }
+
             var prepare = pass % 50 == 0;
             var simulated = pass % 10 == 0;
             await ReplicatePassAsync(cluster, prepare, simulated, stoppingToken);
@@ -1402,6 +1480,38 @@ public sealed class RegionalDataPlane(
         }
 
         return topology;
+    }
+
+    // A newly elected coordinator takes the roles and epoch from ops.RegionPrimaries (what the previous leader last
+    // published) instead of its own possibly stale memory. The primary's lease is treated as live for one more TTL,
+    // because the previous leader may have renewed it a moment ago: failover still waits for it to expire.
+    private async Task AdoptTopologyAsync(RegionCluster cluster, CancellationToken cancellationToken)
+    {
+        await cluster.Gate.WaitAsync(cancellationToken);
+        try
+        {
+            var topology = await LoadTopologyAsync(cancellationToken);
+            if (topology.TryGetValue(cluster.Slug, out var known) && cluster.Nodes.Any(node => node.Name == known.Node))
+            {
+                foreach (var node in cluster.Nodes)
+                {
+                    node.Role = node.Name == known.Node ? "primary" : "replica";
+                    node.LeaseRenewedUtc = node.Role == "primary" ? DateTime.UtcNow : null;
+                }
+
+                cluster.Epoch = Math.Max(cluster.Epoch, known.Epoch);
+                cluster.PublishedPrimary = $"{known.Node}:{known.Epoch}";
+            }
+
+            cluster.WaitingForLease = false;
+            cluster.AdoptedTerm = leadership.Term;
+            events.Info("consensus", cluster.Province.Name,
+                $"Coordinator term {leadership.Term}: {leadership.InstanceId} took over {cluster.Province.Name} ({cluster.Primary?.Name} primary, epoch {cluster.Epoch}).");
+        }
+        finally
+        {
+            cluster.Gate.Release();
+        }
     }
 
     private async Task RenewLeaseAsync(RegionCluster cluster, CancellationToken cancellationToken)

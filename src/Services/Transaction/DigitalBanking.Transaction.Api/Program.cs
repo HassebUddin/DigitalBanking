@@ -16,6 +16,10 @@ builder.Services.AddRegionalOutboxPublisher<TransactionDbContext>();
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddScoped<TransactionService>();
 builder.Services.AddHostedService<TransferSagaRecoveryHostedService>();
+// Two-phase commit coordinator (loan disbursements); the participants are the account and audit services.
+builder.Services.AddScoped<TwoPhaseCoordinator>();
+builder.Services.AddHostedService<TwoPhaseRecoveryHostedService>();
+builder.Services.AddHttpClient<TwoPhaseParticipantsClient>(httpClient => httpClient.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddEventHandler<TransferRequestedHandler>(nameof(TransferRequestedEvent));
 builder.Services.Configure<ServiceEndpoints>(builder.Configuration.GetSection(ServiceEndpoints.SectionName));
 builder.Services.AddHttpClient<AccountLedgerClient>((serviceProvider, httpClient) =>

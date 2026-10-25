@@ -35,7 +35,7 @@ public sealed record ServicePodsView(string Service, int Desired, bool AutoHeal,
 /// instances, keeps each service at its desired replica count (restarting crashed pods), and
 /// publishes the live pod list that the gateway load-balances across.
 /// </summary>
-public sealed class PodSupervisor(IHostEnvironment environment, OpsEventLog events, ILogger<PodSupervisor> logger) : BackgroundService
+public sealed class PodSupervisor(IHostEnvironment environment, OpsEventLog events, Consensus.CoordinatorLeadership leadership, ILogger<PodSupervisor> logger) : BackgroundService
 {
     public const int MaxReplicas = 5;
 
@@ -174,7 +174,11 @@ public sealed class PodSupervisor(IHostEnvironment environment, OpsEventLog even
             try
             {
                 Discover(initial: false);
-                Reconcile();
+                // With several Admin instances, only the elected coordinator restarts pods (no duplicate launches).
+                if (leadership.IsLeader)
+                {
+                    Reconcile();
+                }
             }
             catch (Exception exception)
             {

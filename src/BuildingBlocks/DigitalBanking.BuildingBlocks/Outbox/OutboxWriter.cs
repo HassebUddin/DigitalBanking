@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DigitalBanking.BuildingBlocks.Distributed;
 using DigitalBanking.Contracts;
 
 namespace DigitalBanking.BuildingBlocks.Outbox;
@@ -13,6 +14,11 @@ public static class OutboxWriter
     public static void AddEvent<TEvent>(IOutboxDbContext dbContext, TEvent integrationEvent)
         where TEvent : IntegrationEvent
     {
+        if (integrationEvent.LogicalTimestamp == 0)
+        {
+            integrationEvent.LogicalTimestamp = HybridLogicalClock.Instance.Now();
+        }
+
         dbContext.OutboxMessages.Add(new OutboxMessage
         {
             Id = integrationEvent.EventId,

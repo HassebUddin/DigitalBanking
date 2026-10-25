@@ -1,3 +1,14 @@
+# Shared parts of the Digital Bank ("digitalbanking" in Docker Desktop):
+#   sqlserver        central database (logins, staff, chat, coordinator state)
+#   etcd-1/2/3       Raft cluster that elects the cluster coordinator (used with start-with-docker.ps1 -Consensus)
+#   rabbitmq, redis  messaging and cache
+# Each province's two database nodes (A and B) are in docker/<province>.yml, one Docker project per province
+# ("digitalbanking-punjab", "digitalbanking-sindh", ...), so Docker Desktop shows each province with its A and B.
+name: digitalbanking
+
+x-etcd-node: &etcd-node
+  image: quay.io/coreos/etcd:v3.5.17
+
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -11,8 +22,41 @@ services:
     volumes:
       - sqlserver-data:/var/opt/mssql
 
-  # The province database nodes (A and B of each province) are in docker/<province>.yml, one Docker
-  # project per province, so Docker Desktop groups each province's two nodes together.
+  # Raft consensus for the cluster coordinator (Admin.Api/Ops/Consensus/CoordinatorLeadership.cs): three members,
+  # so the coordinator election survives the loss of any one of them.
+  etcd-1:
+    <<: *etcd-node
+    container_name: digitalbanking-etcd-1
+    command: >
+      etcd --name=etcd-1 --data-dir=/etcd-data
+      --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://etcd-1:2379
+      --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://etcd-1:2380
+      --initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      --initial-cluster-state=new --initial-cluster-token=digitalbanking
+    ports: ["2379:2379"]
+    volumes: [etcd-1-data:/etcd-data]
+  etcd-2:
+    <<: *etcd-node
+    container_name: digitalbanking-etcd-2
+    command: >
+      etcd --name=etcd-2 --data-dir=/etcd-data
+      --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://etcd-2:2379
+      --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://etcd-2:2380
+      --initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      --initial-cluster-state=new --initial-cluster-token=digitalbanking
+    ports: ["22379:2379"]
+    volumes: [etcd-2-data:/etcd-data]
+  etcd-3:
+    <<: *etcd-node
+    container_name: digitalbanking-etcd-3
+    command: >
+      etcd --name=etcd-3 --data-dir=/etcd-data
+      --listen-client-urls=http://0.0.0.0:2379 --advertise-client-urls=http://etcd-3:2379
+      --listen-peer-urls=http://0.0.0.0:2380 --initial-advertise-peer-urls=http://etcd-3:2380
+      --initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      --initial-cluster-state=new --initial-cluster-token=digitalbanking
+    ports: ["32379:2379"]
+    volumes: [etcd-3-data:/etcd-data]
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -32,3 +76,10 @@ services:
 
 volumes:
   sqlserver-data:
+    name: digitalbanking_sqlserver-data
+  etcd-1-data:
+    name: digitalbanking_etcd-1-data
+  etcd-2-data:
+    name: digitalbanking_etcd-2-data
+  etcd-3-data:
+    name: digitalbanking_etcd-3-data

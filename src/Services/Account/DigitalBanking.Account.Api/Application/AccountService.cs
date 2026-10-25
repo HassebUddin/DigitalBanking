@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using DigitalBanking.Account.Api.Domain;
 using DigitalBanking.Account.Api.Repository;
 using DigitalBanking.BuildingBlocks.Caching;
+using DigitalBanking.BuildingBlocks.Distributed;
 using DigitalBanking.BuildingBlocks.Exceptions;
 using DigitalBanking.BuildingBlocks.Web;
 using DigitalBanking.BuildingBlocks.Messaging;
@@ -11,22 +12,26 @@ using DigitalBanking.Contracts.Events;
 
 namespace DigitalBanking.Account.Api.Application;
 
-public sealed class AccountService(IAccountRepository accountRepository, ICacheService cacheService, IEventPublisher eventPublisher, ILogger<AccountService> logger)
+public sealed class AccountService(IAccountRepository accountRepository, ICacheService cacheService, IEventPublisher eventPublisher, ProvinceShardMap shards, ILogger<AccountService> logger)
 {
     public async Task<AccountResponse> AddAccountAsync(Guid userId, Guid customerId, OpenAccountRequest request, CancellationToken cancellationToken)
     {
         var accountType = string.Equals(request.AccountType, AccountTypes.Current, StringComparison.OrdinalIgnoreCase) ? AccountTypes.Current : AccountTypes.Savings;
         var accountId = Guid.NewGuid();
-        var account = new BankAccount { Id = accountId, CustomerId = customerId, UserId = userId, AccountNumber = await CreateAccountNumberAsync(accountId, userId, cancellationToken), AccountType = accountType, Balance = 0, Currency = "PKR", Status = AccountStatuses.Active, CreatedAtUtc = DateTime.UtcNow };
-      
+        var region = await accountRepository.RegionOfUserAsync(userId, cancellationToken);
+        var account = new BankAccount { Id = accountId, CustomerId = customerId, UserId = userId, AccountNumber = await CreateAccountNumberAsync(accountId, region, cancellationToken), AccountType = accountType, Balance = 0, Currency = "PKR", Status = AccountStatuses.Active, CreatedAtUtc = DateTime.UtcNow };
+
         await accountRepository.AddAccountAsync(account, cancellationToken);
+        // Saved in the same transaction as the account (outbox): the admin's projector puts it in the Redis global index.
         accountRepository.AddAccountEvent(new AccountCreatedEvent
         {
             AccountId = account.Id,
             CustomerId = customerId,
             UserId = userId,
             AccountNumber = account.AccountNumber,
-            AccountType = account.AccountType
+            AccountType = account.AccountType,
+            Region = region,
+            Shard = shards.ShardKey(region, account.Id)
         });
 
         await accountRepository.SaveAccountChangesAsync(cancellationToken);
@@ -74,6 +79,9 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
         var account = await accountRepository.GetAccountByIdAsync(accountId, cancellationToken) ?? throw new NotFoundException("Account was not found.");
         if (account.Status == AccountStatuses.Closed)
             throw new BusinessRuleException("A closed account cannot change status.");
+        // A prepared two-phase commit promised the coordinator it can still be applied here.
+        if (status != AccountStatuses.Active && await accountRepository.HasPreparedMovementAsync(accountId, cancellationToken))
+            throw new BusinessRuleException("This account is reserved by a distributed transaction awaiting its decision. Try again shortly.");
 
         account.Status = status;
         await accountRepository.SaveAccountChangesAsync(cancellationToken);
@@ -332,9 +340,8 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
     }
 
     // The number is reserved in the bank-wide account directory, whose primary key keeps it unique.
-    private async Task<string> CreateAccountNumberAsync(Guid accountId, Guid userId, CancellationToken cancellationToken)
+    private async Task<string> CreateAccountNumberAsync(Guid accountId, string region, CancellationToken cancellationToken)
     {
-        var region = await accountRepository.RegionOfUserAsync(userId, cancellationToken);
         while (true)
         {
             var accountNumber = $"10{Random.Shared.NextInt64(1000000000, 9999999999)}";
