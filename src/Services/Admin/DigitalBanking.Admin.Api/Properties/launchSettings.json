@@ -1,4 +1,4 @@
-﻿{
+{
   "profiles": {
     "DigitalBanking.Admin.Api": {
       "commandName": "Project",
@@ -6,6 +6,28 @@
       "applicationUrl": "http://localhost:5107",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "Docker": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5107",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "RegionalDatabases__Server": "localhost,1433",
+        "RegionalDatabases__ProvinceServers__punjab-a": "localhost,14341",
+        "RegionalDatabases__ProvinceServers__punjab-b": "localhost,14351",
+        "RegionalDatabases__ProvinceServers__sindh-a": "localhost,14342",
+        "RegionalDatabases__ProvinceServers__sindh-b": "localhost,14352",
+        "RegionalDatabases__ProvinceServers__kp-a": "localhost,14343",
+        "RegionalDatabases__ProvinceServers__kp-b": "localhost,14353",
+        "RegionalDatabases__ProvinceServers__balochistan-a": "localhost,14344",
+        "RegionalDatabases__ProvinceServers__balochistan-b": "localhost,14354",
+        "RegionalDatabases__UserId": "sa",
+        "RegionalDatabases__Password": "DigitalBank_2026!",
+        "Consensus__Etcd__Endpoints": "http://localhost:2379,http://localhost:22379,http://localhost:32379",
+        "Consensus__InstanceId": "admin-1"
       }
     }
   }

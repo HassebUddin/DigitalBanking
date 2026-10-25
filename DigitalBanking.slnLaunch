@@ -1,0 +1,52 @@
+[
+  {
+    "Name": "Digital Bank (Docker)",
+    "Projects": [
+      {
+        "Path": "src\\Gateways\\DigitalBanking.Gateway\\DigitalBanking.Gateway.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      },
+      {
+        "Path": "src\\Services\\Identity\\DigitalBanking.Identity.Api\\DigitalBanking.Identity.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      },
+      {
+        "Path": "src\\Services\\Customer\\DigitalBanking.Customer.Api\\DigitalBanking.Customer.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      },
+      {
+        "Path": "src\\Services\\Account\\DigitalBanking.Account.Api\\DigitalBanking.Account.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      },
+      {
+        "Path": "src\\Services\\Transaction\\DigitalBanking.Transaction.Api\\DigitalBanking.Transaction.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      },
+      {
+        "Path": "src\\Services\\Notification\\DigitalBanking.Notification.Api\\DigitalBanking.Notification.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      },
+      {
+        "Path": "src\\Services\\Audit\\DigitalBanking.Audit.Api\\DigitalBanking.Audit.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      },
+      {
+        "Path": "src\\Services\\Admin\\DigitalBanking.Admin.Api\\DigitalBanking.Admin.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      },
+      {
+        "Path": "src\\Services\\Chat\\DigitalBanking.Chat.Api\\DigitalBanking.Chat.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "Docker"
+      }
+    ]
+  }
+]

@@ -24,7 +24,7 @@ Set-Location '$root'
 `$env:Consensus__Etcd__Endpoints = 'http://localhost:2379,http://localhost:22379,http://localhost:32379'
 `$env:Consensus__InstanceId = 'admin-$Index'
 `$env:ASPNETCORE_ENVIRONMENT = 'Development'
-dotnet run --project '$project' --no-launch-profile --urls http://localhost:$port
+dotnet run --project '$project' --no-launch-profile --no-build --urls http://localhost:$port
 "@
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $command

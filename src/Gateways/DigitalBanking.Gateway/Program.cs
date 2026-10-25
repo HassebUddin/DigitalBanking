@@ -27,6 +27,10 @@ builder.Services.Configure<RabbitMqOptions>(builder.Configuration.GetSection(Rab
 builder.Services.AddSingleton<RabbitMqConnection>();
 builder.Services.AddSingleton<IEventPublisher, RabbitMqEventPublisher>();
 
+// One Swagger for the whole bank (/swagger), with a definition per province.
+builder.Services.AddSingleton<DigitalBanking.BuildingBlocks.Regions.RegionalDatabaseOptions>();
+builder.Services.AddSingleton<SwaggerAggregator>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy =>
@@ -40,6 +44,8 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+// Start following the provinces' masters at boot, so the very first Swagger page already shows the right ones.
+app.Services.GetRequiredService<DigitalBanking.BuildingBlocks.Regions.RegionalDatabaseOptions>();
 
 // Report which pod served each request, and how the load balancer currently sees every pod.
 var telemetry = app.Services.GetRequiredService<TelemetryOptions>();
@@ -91,6 +97,18 @@ app.MapPost("/api/transfers/queue-transfer", async (QueueTransferRequest request
 
     return Results.Ok(new { transferId });
 }).RequireAuthorization();
+
+app.MapGet("/swagger/{host}/swagger.json", async (string host, SwaggerAggregator swagger, CancellationToken cancellationToken) =>
+    Results.Text((await swagger.DocumentAsync(host, cancellationToken)).ToJsonString(), "application/json"));
+app.UseSwaggerUI(options =>
+{
+    options.RoutePrefix = "swagger";
+    options.DocumentTitle = "Digital Bank API";
+    foreach (var host in SwaggerAggregator.Hosts)
+    {
+        options.SwaggerEndpoint($"/swagger/{host.Slug}/swagger.json", host.Name);
+    }
+});
 
 app.MapReverseProxy();
 app.Run();

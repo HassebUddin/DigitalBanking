@@ -63,8 +63,10 @@ public sealed class AccountsController(
     [HttpPost("request-account-application")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(25_000_000)]
-    public async Task<ActionResult<AccountApplicationResponse>> RequestAccountApplication([FromForm] string accountType, [FromForm] string purpose, [FromForm] bool termsAccepted, [FromForm] IFormFile? identityDocument, [FromForm] IFormFile? identityBackDocument, [FromForm] IFormFile? addressDocument, [FromForm] IFormFile? signature, [FromServices] AccountFileStore fileStore, CancellationToken cancellationToken)
+    public async Task<ActionResult<AccountApplicationResponse>> RequestAccountApplication([FromForm] AccountApplicationForm form, [FromServices] AccountFileStore fileStore, CancellationToken cancellationToken)
     {
+        var (accountType, purpose, termsAccepted) = (form.AccountType, form.Purpose, form.TermsAccepted);
+        var (identityDocument, identityBackDocument, addressDocument, signature) = (form.IdentityDocument, form.IdentityBackDocument, form.AddressDocument, form.Signature);
         if (identityDocument is null || identityBackDocument is null || signature is null) throw new ValidationException("CNIC front, CNIC back and signature are required.");
         if (!termsAccepted) throw new ValidationException("You must accept the account opening declaration.");
         var accessToken = Request.Headers.Authorization.ToString().Replace("Bearer ", string.Empty);

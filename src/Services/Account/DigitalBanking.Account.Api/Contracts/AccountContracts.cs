@@ -59,3 +59,15 @@ public sealed class AccountResponse
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
 }
+
+// The account-opening form (multipart): documents are uploaded with the request.
+public sealed class AccountApplicationForm
+{
+    public string AccountType { get; set; } = string.Empty;
+    public string Purpose { get; set; } = string.Empty;
+    public bool TermsAccepted { get; set; }
+    public Microsoft.AspNetCore.Http.IFormFile? IdentityDocument { get; set; }
+    public Microsoft.AspNetCore.Http.IFormFile? IdentityBackDocument { get; set; }
+    public Microsoft.AspNetCore.Http.IFormFile? AddressDocument { get; set; }
+    public Microsoft.AspNetCore.Http.IFormFile? Signature { get; set; }
+}
