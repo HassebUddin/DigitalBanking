@@ -11,7 +11,7 @@ using DigitalBanking.Contracts.Events;
 
 namespace DigitalBanking.Account.Api.Application;
 
-public sealed class AccountService(IAccountRepository accountRepository, ICacheService cacheService, IEventPublisher eventPublisher)
+public sealed class AccountService(IAccountRepository accountRepository, ICacheService cacheService, IEventPublisher eventPublisher, ILogger<AccountService> logger)
 {
     public async Task<AccountResponse> AddAccountAsync(Guid userId, Guid customerId, OpenAccountRequest request, CancellationToken cancellationToken)
     {
@@ -91,6 +91,7 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
         }
         catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
         {
+            logger.LogWarning(exception, "Account request of {UserId} queued: the province could not be read.", userId);
             provinceDown = true;
         }
 
@@ -121,6 +122,7 @@ public sealed class AccountService(IAccountRepository accountRepository, ICacheS
             }
             catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
             {
+                logger.LogWarning(exception, "Account request of {UserId} queued: the province could not be written.", userId);
             }
         }
 

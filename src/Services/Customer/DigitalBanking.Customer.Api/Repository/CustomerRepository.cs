@@ -10,7 +10,14 @@ public sealed class CustomerRepository(RegionalDb<CustomerDbContext> db) : ICust
 {
     public Task<CustomerProfile?> GetCustomerByUserIdAsync(Guid userId, CancellationToken cancellationToken)
     {
-        return db.FindAsync(context => context.Customers.FirstOrDefaultAsync(customer => customer.UserId == userId, cancellationToken));
+        return db.FindForUserAsync(userId, context => context.Customers.FirstOrDefaultAsync(customer => customer.UserId == userId, cancellationToken), cancellationToken);
+    }
+
+    // Only the given province: a customer's profile lives in the province they registered in,
+    // so another province being down does not matter here.
+    public Task<CustomerProfile?> GetCustomerByUserIdInRegionAsync(Guid userId, string region, CancellationToken cancellationToken)
+    {
+        return db.FindInAsync(BankRegions.Normalize(region), context => context.Customers.FirstOrDefaultAsync(customer => customer.UserId == userId, cancellationToken));
     }
 
     public Task<CustomerProfile?> GetCustomerByIdAsync(Guid customerId, CancellationToken cancellationToken)

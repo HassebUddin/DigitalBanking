@@ -1,0 +1,37 @@
+# sindh province: its two database nodes, grouped as one project in Docker Desktop.
+# Which one is master (primary) and which is slave (replica) is decided by the admin coordinator and can switch.
+name: digitalbanking-sindh
+
+services:
+  sql-sindh-a:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: digitalbanking-sql-sindh-a
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "768"
+    ports:
+      - "14342:1433"
+    volumes:
+      - node-a-data:/var/opt/mssql
+
+  sql-sindh-b:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: digitalbanking-sql-sindh-b
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "768"
+    ports:
+      - "14352:1433"
+    volumes:
+      - node-b-data:/var/opt/mssql
+
+# The data volumes created before the provinces were split into their own projects.
+volumes:
+  node-a-data:
+    external: true
+    name: digitalbanking_sql-sindh-data
+  node-b-data:
+    external: true
+    name: digitalbanking_sql-sindh-b-data

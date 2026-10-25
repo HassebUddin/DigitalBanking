@@ -64,6 +64,13 @@ public sealed class TransactionRepository(RegionalDb<TransactionDbContext> db, S
         return db.FindAsync(context => context.Transactions.FirstOrDefaultAsync(transaction => transaction.Id == transactionId, cancellationToken));
     }
 
+    // A transaction made by this user lives in their province: look there first, so another province being down
+    // does not hold up the lookup.
+    public Task<BankTransaction?> GetTransactionOfUserAsync(Guid transactionId, Guid ownerUserId, CancellationToken cancellationToken)
+    {
+        return db.FindForUserAsync(ownerUserId, context => context.Transactions.FirstOrDefaultAsync(transaction => transaction.Id == transactionId, cancellationToken), cancellationToken);
+    }
+
     // Sagas the recovery job should move forward, from every province:
     // - refunds in progress,
     // - transfers a request deferred because the account service was down (RetryAfterUtc reached),

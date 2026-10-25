@@ -88,7 +88,11 @@ public sealed class CustomerService(ICustomerRepository customerRepository)
     {
         // The app may already have created a placeholder profile (the customer signed in before this event
         // arrived): fill in what they gave at registration instead of dropping it.
-        if (await customerRepository.GetCustomerByUserIdAsync(userId, cancellationToken) is { } existing)
+        // Registration names the province, so only that province is looked at (another one being down is irrelevant).
+        var placeholder = string.IsNullOrWhiteSpace(region)
+            ? await customerRepository.GetCustomerByUserIdAsync(userId, cancellationToken)
+            : await customerRepository.GetCustomerByUserIdInRegionAsync(userId, region, cancellationToken);
+        if (placeholder is { } existing)
         {
             var cnic = nationalId.Trim();
             if (existing.NationalId.StartsWith("TMP-", StringComparison.Ordinal) && cnic.Length > 0

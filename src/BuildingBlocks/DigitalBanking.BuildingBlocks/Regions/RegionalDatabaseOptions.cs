@@ -13,6 +13,8 @@ namespace DigitalBanking.BuildingBlocks.Regions;
 //   "RegionalDatabases": { "ProvinceServers": { "punjab": "localhost,14341", "sindh": "localhost,14342",
 //                          "kp": "localhost,14343", "balochistan": "localhost,14344" }, ... }
 // A province server wins over the zone servers.
+// Or give every node its own server (one Docker container per node), so stopping a container takes down just
+// that node and its standby takes over: "ProvinceServers": { "punjab-a": "localhost,14341", "punjab-b": "localhost,14351", ... }
 public sealed class RegionalDatabaseOptions
 {
     private readonly string? zoneAServer;
@@ -26,11 +28,11 @@ public sealed class RegionalDatabaseOptions
         Server = configuration["RegionalDatabases:Server"] ?? "(localdb)\\MSSQLLocalDB";
         zoneAServer = configuration["RegionalDatabases:ZoneAServer"];
         zoneBServer = configuration["RegionalDatabases:ZoneBServer"];
-        foreach (var region in BankRegions.All)
+        foreach (var key in BankRegions.All.SelectMany(region => new[] { region, $"{region}-a", $"{region}-b" }))
         {
-            if (configuration[$"RegionalDatabases:ProvinceServers:{region}"] is { Length: > 0 } provinceServer)
+            if (configuration[$"RegionalDatabases:ProvinceServers:{key}"] is { Length: > 0 } provinceServer)
             {
-                provinceServers[region] = provinceServer;
+                provinceServers[key] = provinceServer;
             }
         }
 
@@ -45,9 +47,12 @@ public sealed class RegionalDatabaseOptions
 
     public RegionTopology Topology { get; }
 
+    // A node's own server ("punjab-b") wins over its province's server ("punjab"), which wins over the zone servers.
     public string ServerFor(string database) =>
-        ProvinceOf(database) is { } region && provinceServers.TryGetValue(region, out var provinceServer) ? provinceServer
-        : ZoneServerFor(database);
+        ProvinceOf(database) is { } region
+            && (provinceServers.TryGetValue($"{region}-{char.ToLowerInvariant(database[^1])}", out var server) || provinceServers.TryGetValue(region, out server))
+            ? server
+            : ZoneServerFor(database);
 
     // DigitalBanking_Sindh_A -> sindh; the central database belongs to no province.
     private static string? ProvinceOf(string database) =>

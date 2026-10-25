@@ -51,7 +51,7 @@ public sealed class TopologyProxyConfig(
                     {
                         Enabled = true,
                         Interval = TimeSpan.FromSeconds(2),
-                        Timeout = TimeSpan.FromSeconds(1),
+                        Timeout = TimeSpan.FromSeconds(3),
                         Policy = HealthCheckConstants.ActivePolicy.ConsecutiveFailures,
                         Path = "/probe"
                     },
@@ -62,7 +62,9 @@ public sealed class TopologyProxyConfig(
                         ReactivationPeriod = TimeSpan.FromSeconds(10)
                     }
                 },
-                Metadata = new Dictionary<string, string> { ["ConsecutiveFailuresHealthPolicy.Threshold"] = "1" }
+                // Three missed probes in a row (about 6 s): one slow probe on a busy machine must not take a
+                // healthy service out of rotation (customers would get 503 "maintenance" for no reason).
+                Metadata = new Dictionary<string, string> { ["ConsecutiveFailuresHealthPolicy.Threshold"] = "3" }
             };
         }).ToList();
 

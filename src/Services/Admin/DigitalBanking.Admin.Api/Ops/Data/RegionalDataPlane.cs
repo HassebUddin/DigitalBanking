@@ -78,6 +78,10 @@ public sealed class RegionCluster
     public long BankRowsShipped { get; set; }
     public DateTime? BankLastShippedUtc { get; set; }
     public long BankVersion { get; set; }
+    // The primary BankVersion was shipped from (the standby holds that primary's changes up to BankVersion).
+    public string? BankSource { get; set; }
+    // Write-ahead log files waiting for the standby (written while it is down).
+    public int WalFiles { get; set; }
     public int BankRebuilds { get; set; }
     public long DivergedRows { get; set; }
     public ConcurrentDictionary<string, long> CityCounts { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -108,7 +112,8 @@ public sealed record ClusterView(
     string Province, string Code, string State, bool AutoFailover, bool ReplicationPaused, long CustomerLag, long TransactionLag,
     DateTime? LastReplicatedUtc, double ReplicatedPerSecond, int Failovers, DateTime? LastFailoverUtc, long LostRows, long Customers,
     IReadOnlyList<NodeView> Nodes,
-    long Epoch, bool WaitingForLease, long BankRowsShipped, DateTime? BankLastShippedUtc, long BankVersion, int BankRebuilds, long DivergedRows);
+    long Epoch, bool WaitingForLease, long BankRowsShipped, DateTime? BankLastShippedUtc, long BankVersion, int BankRebuilds, long DivergedRows,
+    int WalFiles);
 
 /// <summary>
 /// Four regional SQL Server clusters, each a primary and a replica in separate zones. Handles schema,
@@ -119,6 +124,7 @@ public sealed class RegionalDataPlane(
     IServiceScopeFactory scopeFactory,
     OpsEventLog events,
     BankReplicator bank,
+    WriteAheadLog wal,
     RegionalDatabaseOptions regionalOptions,
     ILogger<RegionalDataPlane> logger) : BackgroundService
 {
@@ -767,13 +773,18 @@ public sealed class RegionalDataPlane(
     }
 
     // Health checks, lease renewal and failover: its own loop, so slow statistics never delay a lease renewal.
-    private async Task HealthLoopAsync(CancellationToken stoppingToken)
+    // One loop per province: a province whose nodes are unreachable (slow connect timeouts) must never delay
+    // the lease renewals of the other provinces, or their primaries would fence themselves (writes refused).
+    private Task HealthLoopAsync(CancellationToken stoppingToken) =>
+        Task.WhenAll(clusters.Values.Select(cluster => Task.Run(() => ClusterHealthLoopAsync(cluster, stoppingToken), stoppingToken)));
+
+    private async Task ClusterHealthLoopAsync(RegionCluster cluster, CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await Task.WhenAll(clusters.Values.Select(cluster => CheckClusterAsync(cluster, stoppingToken)));
+                await CheckClusterAsync(cluster, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -781,11 +792,34 @@ public sealed class RegionalDataPlane(
             }
             catch (Exception exception)
             {
-                logger.LogWarning(exception, "Cluster health loop failed.");
+                logger.LogWarning(exception, "Health check of {Province} failed.", cluster.Province.Name);
             }
 
             await Task.Delay(1_000, stoppingToken).ContinueWith(_ => { }, CancellationToken.None);
         }
+    }
+
+    // A probe gets at most 3.5 s: a stopped node can hang a connect much longer, and its partner's lease
+    // (renewed by the same check) must keep being renewed well inside its 10 s lifetime.
+    private async Task<(bool Ok, double LatencyMs, string? Error)> ProbeWithDeadlineAsync(RegionCluster cluster, DbNode node, CancellationToken cancellationToken)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(3));
+        var probe = ProbeAsync(cluster, node, deadline.Token);
+        try
+        {
+            if (await Task.WhenAny(probe, Task.Delay(TimeSpan.FromSeconds(3.5), cancellationToken)) == probe)
+            {
+                return await probe;
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+        }
+
+        // Still hanging: observe its eventual failure so it is not reported as unobserved.
+        _ = probe.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        return (false, 0, "Health probe timed out (node not answering).");
     }
 
     private async Task CheckClusterAsync(RegionCluster cluster, CancellationToken cancellationToken)
@@ -795,7 +829,7 @@ public sealed class RegionalDataPlane(
         await cluster.Gate.WaitAsync(cancellationToken);
         try
         {
-            var results = await Task.WhenAll(cluster.Nodes.Select(node => ProbeAsync(cluster, node, cancellationToken)));
+            var results = await Task.WhenAll(cluster.Nodes.Select(node => ProbeWithDeadlineAsync(cluster, node, cancellationToken)));
             for (var index = 0; index < cluster.Nodes.Length; index++)
             {
                 var node = cluster.Nodes[index];
@@ -869,6 +903,10 @@ public sealed class RegionalDataPlane(
         var watch = Stopwatch.StartNew();
         var old = cluster.Primary;
         var atRisk = cluster.CustomerLag + cluster.TransactionLag;
+
+        // Changes the old primary made while this node was down are in the write-ahead log: apply them first,
+        // so the new primary starts with everything (if this fails, the promotion is retried on the next check).
+        await ReplayWalAsync(cluster, target, cancellationToken);
 
         // New term. The new primary must hold the lease before any service is pointed at it.
         var epoch = cluster.Epoch + 1;
@@ -997,6 +1035,8 @@ public sealed class RegionalDataPlane(
             var replica = cluster.Replica;
             if (replica is not { Status: "online", NeedsResync: false })
             {
+                // Nowhere to replicate to: keep the primary's changes in the write-ahead log on the host disk instead.
+                await CaptureWalAsync(cluster, primary, replica, stoppingToken);
                 return;
             }
 
@@ -1047,6 +1087,73 @@ public sealed class RegionalDataPlane(
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogWarning("Replication for {Province} failed: {Message}", cluster.Province.Name, exception.Message);
+        }
+    }
+
+    // Appends the primary's new banking changes to the province's write-ahead log while the standby is down.
+    private async Task CaptureWalAsync(RegionCluster cluster, DbNode primary, DbNode? replica, CancellationToken cancellationToken)
+    {
+        if (!await cluster.ShipGate.WaitAsync(0, cancellationToken))
+        {
+            return;
+        }
+
+        try
+        {
+            if (cluster.Primary != primary)
+            {
+                return;
+            }
+
+            // The standby holds this primary's changes up to BankVersion; anything else starts from a full copy.
+            var startVersion = string.Equals(cluster.BankSource, primary.Database, StringComparison.OrdinalIgnoreCase) ? cluster.BankVersion : -1;
+            var wasEmpty = cluster.WalFiles == 0;
+            var rows = await wal.CaptureAsync(cluster.Slug, primary.Database, primary.ConnectionString, startVersion, cancellationToken);
+            cluster.WalFiles = wal.PendingFiles(cluster.Slug);
+            if (rows > 0 && wasEmpty)
+            {
+                events.Warning("database", primary.Name,
+                    $"{replica?.Name ?? "The standby"} is down: changes on {primary.Name} are also written to the write-ahead log " +
+                    $"(data/wal/{cluster.Slug}) so they survive even if {primary.Name} is lost.");
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning("Write-ahead log for {Province} failed: {Message}", cluster.Province.Name, exception.Message);
+        }
+        finally
+        {
+            cluster.ShipGate.Release();
+        }
+    }
+
+    // Before a standby becomes primary, it applies what the old primary wrote to the log while the standby was down.
+    private async Task ReplayWalAsync(RegionCluster cluster, DbNode target, CancellationToken cancellationToken)
+    {
+        if (wal.PendingFiles(cluster.Slug) == 0)
+        {
+            return;
+        }
+
+        await cluster.ShipGate.WaitAsync(cancellationToken);
+        try
+        {
+            var (source, files, rows) = await wal.ReplayAsync(cluster.Slug, target.Database, target.ConnectionString, cancellationToken);
+            cluster.WalFiles = wal.PendingFiles(cluster.Slug);
+            if (files > 0)
+            {
+                events.Success("database", target.Name,
+                    $"Write-ahead log replayed into {target.Name} before promotion: {files} file(s), {rows:N0} banking changes from {source.Replace("DigitalBanking_", string.Empty)}. Nothing was lost.");
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            events.Critical("database", target.Name, $"Write-ahead log replay into {target.Name} failed, promotion postponed: {Shorten(exception.Message)}");
+            throw;
+        }
+        finally
+        {
+            cluster.ShipGate.Release();
         }
     }
 
@@ -1361,7 +1468,15 @@ public sealed class RegionalDataPlane(
             var result = await bank.ShipAsync(primary.ConnectionString, primary.Database, replica.ConnectionString, cancellationToken);
             cluster.BankRowsShipped += result.RowsApplied;
             cluster.BankVersion = result.SourceVersion;
+            cluster.BankSource = primary.Database;
             cluster.BankLastShippedUtc = DateTime.UtcNow;
+            cluster.WalFiles = wal.PendingFiles(cluster.Slug);
+            if (cluster.WalFiles > 0 && wal.ClearIfCaughtUp(cluster.Slug, primary.Database, result.SourceVersion))
+            {
+                cluster.WalFiles = 0;
+                events.Info("database", replica.Name,
+                    $"{replica.Name} is back and caught up with {primary.Name}; the write-ahead log is no longer needed and was cleared.");
+            }
             if (result.Rebuilt)
             {
                 cluster.BankRebuilds++;
@@ -1458,7 +1573,7 @@ public sealed class RegionalDataPlane(
                 node.CustomerRows, node.TransactionRows, node.SizeMb, node.LastError, node.LastCheckUtc,
                 node.Partitioned, node.HoldsLease, node.LeaseRenewedUtc)).ToList(),
             cluster.Epoch, cluster.WaitingForLease, cluster.BankRowsShipped, cluster.BankLastShippedUtc, cluster.BankVersion,
-            cluster.BankRebuilds, cluster.DivergedRows)).ToList();
+            cluster.BankRebuilds, cluster.DivergedRows, wal.PendingFiles(cluster.Slug))).ToList();
     }
 
     public IEnumerable<(string Key, string Label, string ConnectionString, string Region, string Role, string Status)> DatabaseCatalog()

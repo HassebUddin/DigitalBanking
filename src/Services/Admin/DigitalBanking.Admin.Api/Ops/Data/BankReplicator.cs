@@ -16,6 +16,13 @@ public sealed record ShipResult(long RowsApplied, bool Rebuilt, long SourceVersi
 
 public sealed record DivergedRow(string Table, string Operation, string? RowJson);
 
+// One table's changes in a write-ahead log entry: rows as they now are (upserts) and keys of deleted rows.
+// Types (CLR type names, one per column) restore the values exactly after a JSON round trip.
+public sealed record WalTable(string Table, List<string> Columns, List<string> Types, List<string> Keys, List<object?[]> Upserts, List<object?[]> Deletes);
+
+// Everything the primary committed between two change-tracking versions (FromVersion -1: a full copy).
+public sealed record WalBatch(string Source, long FromVersion, long ToVersion, DateTime CapturedAtUtc, List<WalTable> Tables);
+
 /// <summary>
 /// Real primary-to-standby replication of the banking tables (account, txn, customer, notify, audit schemas)
 /// using SQL Server Change Tracking, plus the primary lease and the fencing triggers that make a database
@@ -229,6 +236,153 @@ public sealed class BankReplicator
             """, cancellationToken, transaction, ("@source", sourceDatabase), ("@version", version));
         await transaction.CommitAsync(cancellationToken);
         return new ShipResult(applied, needsRebuild, version);
+    }
+
+    /// <summary>
+    /// Changes the source committed after sinceVersion, read at one point in time (null when nothing changed).
+    /// When the history no longer reaches back that far (or sinceVersion is -1) every row is returned instead.
+    /// </summary>
+    public async Task<WalBatch?> ReadChangesSinceAsync(string sourceConnectionString, string sourceDatabase, long sinceVersion, CancellationToken cancellationToken)
+    {
+        await using var source = new SqlConnection(sourceConnectionString);
+        await source.OpenAsync(cancellationToken);
+        var version = await ScalarLongAsync(source,
+            "SET TRANSACTION ISOLATION LEVEL SNAPSHOT; BEGIN TRANSACTION; SELECT ISNULL(CHANGE_TRACKING_CURRENT_VERSION(), 0);", cancellationToken);
+        if (version == sinceVersion)
+        {
+            return null;
+        }
+
+        var tables = await ParentsFirstAsync(source, await TablesAsync(source, cancellationToken), cancellationToken);
+        var full = sinceVersion < 0 || await TooOldAsync(source, tables, sinceVersion, cancellationToken);
+        if (!full)
+        {
+            tables = await ChangedTablesAsync(source, tables, sinceVersion, cancellationToken);
+        }
+
+        var result = new List<WalTable>();
+        foreach (var table in tables)
+        {
+            var keys = full ? string.Join(", ", table.Keys.Select(key => $"t.[{key}]")) : string.Join(", ", table.Keys.Select(key => $"ct.[{key}]"));
+            var sql = full
+                ? $"SELECT 0, {keys}, {table.ColumnList("t")} FROM {table.FullName} AS t"
+                : $"SELECT CASE WHEN t.[{table.Keys[0]}] IS NULL THEN 1 ELSE 0 END, {keys}, {table.ColumnList("t")} " +
+                  $"FROM CHANGETABLE(CHANGES {table.FullName}, @since) AS ct LEFT JOIN {table.FullName} AS t ON {table.KeyJoin("t", "ct")}";
+            await using var read = new SqlCommand(sql, source) { CommandTimeout = 300 };
+            read.Parameters.AddWithValue("@since", Math.Max(0, sinceVersion));
+            await using var reader = await read.ExecuteReaderAsync(cancellationToken);
+            var types = Enumerable.Range(1 + table.Keys.Count, table.Columns.Count).Select(index => reader.GetFieldType(index).FullName!).ToList();
+            var change = new WalTable(table.FullName, table.Columns.ToList(), types, table.Keys.ToList(), [], []);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (reader.GetInt32(0) == 1)
+                {
+                    change.Deletes.Add(Enumerable.Range(1, table.Keys.Count).Select(index => ToWal(reader.GetValue(index))).ToArray());
+                }
+                else
+                {
+                    change.Upserts.Add(Enumerable.Range(1 + table.Keys.Count, table.Columns.Count).Select(index => ToWal(reader.GetValue(index))).ToArray());
+                }
+            }
+
+            if (change.Upserts.Count + change.Deletes.Count > 0)
+            {
+                result.Add(change);
+            }
+        }
+
+        return new WalBatch(sourceDatabase, full ? -1 : sinceVersion, version, DateTime.UtcNow, result);
+    }
+
+    /// <summary>
+    /// Applies write-ahead log entries, oldest first, in one transaction. Rows are matched by primary key
+    /// (update if present, insert if not), so an entry the node already holds is never duplicated.
+    /// Records the source version reached, as a normal replication pass would.
+    /// </summary>
+    public async Task<long> ApplyWalAsync(string targetConnectionString, IReadOnlyList<WalBatch> batches, CancellationToken cancellationToken)
+    {
+        await using var target = new SqlConnection(targetConnectionString);
+        await target.OpenAsync(cancellationToken);
+        var targetTables = (await TablesAsync(target, cancellationToken)).ToDictionary(table => table.FullName, StringComparer.OrdinalIgnoreCase);
+        await using var transaction = (SqlTransaction)await target.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+        await ExecuteAsync(target, "EXEC sp_set_session_context @key = N'replication', @value = 1", cancellationToken, transaction);
+
+        long applied = 0;
+        var stage = 0;
+        foreach (var batch in batches)
+        {
+            var prepared = new List<(BankTable Table, List<object[]> Upserts, List<object[]> Deletes)>();
+            foreach (var change in batch.Tables)
+            {
+                if (!targetTables.TryGetValue(change.Table, out var existing))
+                {
+                    continue;
+                }
+
+                var columns = change.Columns.Where(column => existing.Columns.Contains(column, StringComparer.OrdinalIgnoreCase)).ToList();
+                var positions = columns.Select(column => change.Columns.IndexOf(column)).ToList();
+                var table = existing with { Columns = columns, Keys = change.Keys, IdentityColumn = columns.Contains(existing.IdentityColumn ?? string.Empty) ? existing.IdentityColumn : null };
+                var keyTypes = change.Keys.Select(key => change.Types[change.Columns.IndexOf(key)]).ToList();
+                var upserts = change.Upserts.Select(row => positions.Select(position => FromWal(row[position], change.Types[position])!).ToArray()).ToList();
+                var deletes = change.Deletes.Select(row => row.Select((value, index) => FromWal(value, keyTypes[index])!).ToArray()).ToList();
+                prepared.Add((table, upserts, deletes));
+            }
+
+            foreach (var (table, upserts, _) in prepared)
+            {
+                applied += await ApplyUpsertsAsync(target, transaction, table, stage++, upserts, cancellationToken);
+            }
+
+            for (var index = prepared.Count - 1; index >= 0; index--)
+            {
+                applied += await ApplyDeletesAsync(target, transaction, prepared[index].Table, prepared[index].Deletes, cancellationToken);
+            }
+        }
+
+        var last = batches[^1];
+        await ExecuteAsync(target, """
+            MERGE ops.ReplicationState AS state
+            USING (SELECT 1 AS Id) AS one ON state.Id = one.Id
+            WHEN MATCHED THEN UPDATE SET SourceDatabase = @source, LastVersion = @version, UpdatedAtUtc = SYSUTCDATETIME()
+            WHEN NOT MATCHED THEN INSERT (Id, SourceDatabase, LastVersion, UpdatedAtUtc) VALUES (1, @source, @version, SYSUTCDATETIME());
+            EXEC sp_set_session_context @key = N'replication', @value = NULL;
+            """, cancellationToken, transaction, ("@source", last.Source), ("@version", last.ToVersion));
+        await transaction.CommitAsync(cancellationToken);
+        return applied;
+    }
+
+    // JSON keeps Guid, DateTime and byte[] as strings; FromWal turns them back using the column's type.
+    private static object? ToWal(object value) => value is DBNull ? null : value;
+
+    private static object? FromWal(object? value, string type)
+    {
+        if (value is not System.Text.Json.JsonElement element)
+        {
+            return value ?? DBNull.Value;
+        }
+
+        if (element.ValueKind == System.Text.Json.JsonValueKind.Null)
+        {
+            return DBNull.Value;
+        }
+
+        return type switch
+        {
+            "System.Guid" => element.GetGuid(),
+            "System.DateTime" => DateTime.Parse(element.GetString()!, null, System.Globalization.DateTimeStyles.RoundtripKind),
+            "System.DateTimeOffset" => element.GetDateTimeOffset(),
+            "System.Byte[]" => element.GetBytesFromBase64(),
+            "System.TimeSpan" => TimeSpan.Parse(element.GetString()!),
+            "System.Decimal" => element.GetDecimal(),
+            "System.Double" => element.GetDouble(),
+            "System.Single" => element.GetSingle(),
+            "System.Int64" => element.GetInt64(),
+            "System.Int32" => element.GetInt32(),
+            "System.Int16" => element.GetInt16(),
+            "System.Byte" => element.GetByte(),
+            "System.Boolean" => element.GetBoolean(),
+            _ => element.ValueKind == System.Text.Json.JsonValueKind.String ? element.GetString() : element.GetRawText()
+        };
     }
 
     /// <summary>

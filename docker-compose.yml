@@ -11,56 +11,8 @@ services:
     volumes:
       - sqlserver-data:/var/opt/mssql
 
-  # One SQL Server per province: holds DigitalBanking_<Province>_A and _B.
-  # `docker stop digitalbanking-sql-sindh` takes only Sindh down; Punjab, KP and Balochistan keep working
-  # and the admin keeps showing their customers.
-  sql-punjab:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: digitalbanking-sql-punjab
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
-      MSSQL_MEMORY_LIMIT_MB: "1024"
-    ports:
-      - "14341:1433"
-    volumes:
-      - sql-punjab-data:/var/opt/mssql
-
-  sql-sindh:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: digitalbanking-sql-sindh
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
-      MSSQL_MEMORY_LIMIT_MB: "1024"
-    ports:
-      - "14342:1433"
-    volumes:
-      - sql-sindh-data:/var/opt/mssql
-
-  sql-kp:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: digitalbanking-sql-kp
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
-      MSSQL_MEMORY_LIMIT_MB: "1024"
-    ports:
-      - "14343:1433"
-    volumes:
-      - sql-kp-data:/var/opt/mssql
-
-  sql-balochistan:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: digitalbanking-sql-balochistan
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
-      MSSQL_MEMORY_LIMIT_MB: "1024"
-    ports:
-      - "14344:1433"
-    volumes:
-      - sql-balochistan-data:/var/opt/mssql
+  # The province database nodes (A and B of each province) are in docker/<province>.yml, one Docker
+  # project per province, so Docker Desktop groups each province's two nodes together.
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -80,7 +32,3 @@ services:
 
 volumes:
   sqlserver-data:
-  sql-punjab-data:
-  sql-sindh-data:
-  sql-kp-data:
-  sql-balochistan-data:

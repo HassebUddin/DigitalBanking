@@ -56,7 +56,8 @@ export class ChatService {
       .withUrl(`${this.apiUrl}/hubs/chat`, {
         accessTokenFactory: () => this.authService.accessToken ?? ''
       })
-      .withAutomaticReconnect()
+      // Never give up: after a service restart (however long) the chat reconnects by itself.
+      .withAutomaticReconnect({ nextRetryDelayInMilliseconds: (context) => Math.min(5000, 1000 * (context.previousRetryCount + 1)) })
       .build();
 
     this.connection.on('MessageReceived', (message: ChatMessage) => {
@@ -106,7 +107,48 @@ export class ChatService {
       this.iceCandidates.update((items) => [...items, payload.candidate]);
     });
 
-    await this.connection.start();
+    this.connection.onreconnected(() => {
+      if (this.currentConversationId) {
+        void this.connection?.invoke('JoinConversation', this.currentConversationId).catch(() => undefined);
+      }
+      this.loadConversations();
+    });
+    this.connection.onclose(() => this.retryStartSoon());
+
+    try {
+      await this.connection.start();
+    } catch {
+      this.retryStartSoon();
+    }
+  }
+
+  // Starts the connection again if it is down (the chat service was unreachable when it first started).
+  private retryStartSoon() {
+    window.setTimeout(() => void this.ensureConnected(), 3000);
+  }
+
+  private async ensureConnected() {
+    if (!this.authService.accessToken) {
+      return;
+    }
+
+    if (!this.connection) {
+      await this.connect();
+      return;
+    }
+
+    if (this.connection.state === signalR.HubConnectionState.Disconnected) {
+      try {
+        await this.connection.start();
+      } catch {
+        this.retryStartSoon();
+      }
+    }
+  }
+
+  private async invoke(method: string, ...args: unknown[]) {
+    await this.ensureConnected();
+    await this.connection?.invoke(method, ...args);
   }
 
   loadDirectory(forceHold = false) {
@@ -207,7 +249,11 @@ export class ChatService {
     this.messages.set([]);
     this.messagesStartedAt = Date.now();
     this.messagesLoading.set(true);
-    await this.connection?.invoke('JoinConversation', conversation.id);
+    try {
+      await this.invoke('JoinConversation', conversation.id);
+    } catch {
+      // Live updates come back with the reconnect; the history still loads below.
+    }
     this.http.get<ChatMessage[]>(`${this.apiUrl}/api/chat/conversations/${conversation.id}/messages`).subscribe({
       next: (messages) => {
         holdSkeleton(this.messagesStartedAt, () => {
@@ -290,7 +336,7 @@ export class ChatService {
   }
 
   async acknowledgeRead(conversationId: string) {
-    await this.connection?.invoke('AcknowledgeRead', conversationId);
+    await this.invoke('AcknowledgeRead', conversationId);
   }
 
   startDirect(otherUserId: string) {
@@ -320,7 +366,7 @@ export class ChatService {
       receiptStatus: 'Sent',
       createdAtUtc: new Date().toISOString()
     });
-    await this.connection?.invoke('SendText', conversationId, text);
+    await this.invoke('SendText', conversationId, text);
   }
 
   upsertMessage(message: ChatMessage) {
@@ -344,7 +390,7 @@ export class ChatService {
   }
 
   async notifyTyping(conversationId: string) {
-    await this.connection?.invoke('NotifyTyping', conversationId);
+    await this.invoke('NotifyTyping', conversationId);
   }
 
   uploadFile(conversationId: string, file: File) {
@@ -361,31 +407,31 @@ export class ChatService {
   }
 
   async startCall(conversationId: string, callType: 'Voice' | 'Video') {
-    await this.connection?.invoke('StartCall', conversationId, callType);
+    await this.invoke('StartCall', conversationId, callType);
   }
 
   async acceptCall(callId: string) {
-    await this.connection?.invoke('AcceptCall', callId);
+    await this.invoke('AcceptCall', callId);
   }
 
   async declineCall(callId: string) {
-    await this.connection?.invoke('DeclineCall', callId);
+    await this.invoke('DeclineCall', callId);
   }
 
   async endCall(callId: string) {
-    await this.connection?.invoke('EndCall', callId);
+    await this.invoke('EndCall', callId);
   }
 
   async sendOffer(callId: string, sdp: string) {
-    await this.connection?.invoke('SendOffer', callId, sdp);
+    await this.invoke('SendOffer', callId, sdp);
   }
 
   async sendAnswer(callId: string, sdp: string) {
-    await this.connection?.invoke('SendAnswer', callId, sdp);
+    await this.invoke('SendAnswer', callId, sdp);
   }
 
   async sendIceCandidate(callId: string, candidate: string) {
-    await this.connection?.invoke('SendIceCandidate', callId, candidate);
+    await this.invoke('SendIceCandidate', callId, candidate);
   }
 
   createEmployee(payload: { email: string; password: string; fullName: string; role: string }) {

@@ -42,14 +42,27 @@ public sealed class StandbyAcknowledger(RegionalDatabaseOptions options, ILogger
             return Unconfirmed(strict, $"primary {primary} became unreachable after the commit ({exception.Message})");
         }
 
-        SqlConnection standbyConnection;
+        // A standby already known to be down is not dialled again: each try would cost a connect timeout, and a
+        // transfer waits for the standby several times. A background check notices when it is back.
+        var standbyConnectionString = options.ConnectionStringFor(standby) + "Connect Timeout=2;";
+        if (StandbyDown.ContainsKey(standbyConnectionString))
+        {
+            ProbeInBackground(standbyConnectionString);
+            return false;
+        }
+
+        SqlConnection standbyConnection = new(standbyConnectionString);
         try
         {
-            standbyConnection = new SqlConnection(options.ConnectionStringFor(standby));
-            await standbyConnection.OpenAsync(cancellationToken);
+            // A hard 2 s deadline: a stopped container can hold a connect far longer than Connect Timeout.
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(2));
+            await standbyConnection.OpenAsync(deadline.Token);
         }
-        catch (SqlException exception)
+        catch (Exception exception) when (exception is SqlException || exception is OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
+            await standbyConnection.DisposeAsync();
+            StandbyDown[standbyConnectionString] = DateTime.UtcNow;
             logger.LogWarning("Standby {Standby} is down; movement acknowledged without it: {Message}", standby, exception.Message);
             return false;
         }
@@ -74,12 +87,40 @@ public sealed class StandbyAcknowledger(RegionalDatabaseOptions options, ILogger
             }
             catch (SqlException exception)
             {
+                StandbyDown[standbyConnectionString] = DateTime.UtcNow;
                 logger.LogWarning("Standby {Standby} went down while waiting; movement acknowledged without it: {Message}", standby, exception.Message);
                 return false;
             }
         }
 
         return Unconfirmed(strict, $"standby {standby} did not confirm within {Timeout.TotalSeconds:0}s");
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> StandbyDown = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> LastProbe = new();
+
+    private static void ProbeInBackground(string connectionString)
+    {
+        var now = DateTime.UtcNow;
+        if (LastProbe.TryGetValue(connectionString, out var last) && now - last < TimeSpan.FromSeconds(1.5)
+            || !LastProbe.TryAdd(connectionString, now) && !LastProbe.TryUpdate(connectionString, now, last))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var connection = new SqlConnection(connectionString);
+                await connection.OpenAsync();
+                StandbyDown.TryRemove(connectionString, out _);
+            }
+            catch
+            {
+                // Still down.
+            }
+        });
     }
 
     private bool Unconfirmed(bool strict, string reason)

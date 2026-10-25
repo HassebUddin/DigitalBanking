@@ -11,7 +11,7 @@ namespace DigitalBanking.Transaction.Api.Application;
 // - if the account service stays down for 10 minutes, the transfer is given up: failed if nothing was taken, refunded otherwise.
 public sealed class TransferSagaRecoveryHostedService(IServiceScopeFactory scopeFactory) : BackgroundService
 {
-    private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan GiveUpAfter = TimeSpan.FromMinutes(10);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

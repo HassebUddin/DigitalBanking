@@ -223,6 +223,9 @@ import { OpsService } from '../ops.service';
                       <div class="repl" [class.paused]="cluster.replicationPaused" [class.broken]="!replicating(cluster)">
                         <i></i>
                         <span>{{ replicating(cluster) ? (cluster.customerLag + cluster.transactionLag === 0 ? 'in sync' : grouped(cluster.customerLag + cluster.transactionLag) + ' rows behind') : cluster.replicationPaused ? 'paused' : 'stopped' }}</span>
+                        @if (cluster.walFiles > 0) {
+                          <span class="wal-chip" title="Write-ahead log: changes kept on disk in data/wal until the slave has them">WAL · {{ cluster.walFiles }} file{{ cluster.walFiles === 1 ? '' : 's' }}</span>
+                        }
                       </div>
                     }
                     <div class="db-node" [attr.data-status]="node.status" [class.primary]="node.role === 'primary'">

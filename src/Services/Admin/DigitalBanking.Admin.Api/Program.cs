@@ -23,6 +23,7 @@ builder.Services.AddSingleton<HostMetrics>();
 builder.Services.AddSingleton<DataExplorer>();
 builder.Services.AddSingleton<ICustomerSearch, SqlCustomerSearch>();
 builder.Services.AddSingleton<BankReplicator>();
+builder.Services.AddSingleton<WriteAheadLog>();
 AddHostedSingleton<OpsEventLog>(builder.Services);
 AddHostedSingleton<RegionalDataPlane>(builder.Services);
 AddHostedSingleton<PodSupervisor>(builder.Services);

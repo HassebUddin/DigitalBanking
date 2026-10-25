@@ -72,7 +72,7 @@ public sealed class RabbitMqEventConsumer(
                     // A province database is down: the message stays queued. Wait before handing it back,
                     // instead of retrying thousands of times a second until the province returns.
                     logger.LogWarning("{EventType} waits: a province database is down.", eventType);
-                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
                 }
                 else
                 {

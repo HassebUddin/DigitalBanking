@@ -22,8 +22,7 @@ public sealed class TransferRequestedHandler(TransactionService transactionServi
         catch (Exception exception) when (RegionErrors.IsRegionDown(exception))
         {
             // The sender's (or receiver's) province is down, master and slave: keep the transfer in the queue.
-            // Wait a little, then let RabbitMQ deliver it again; it goes through once the province is back.
-            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            // The consumer waits a few seconds before RabbitMQ delivers it again; it goes through once the province is back.
             throw;
         }
     }
@@ -36,7 +35,7 @@ public sealed class TransferRequestedHandler(TransactionService transactionServi
         });
 
         // TransferId is the transaction id, so a redelivered message never moves money twice.
-        if (request is null || await transactionRepository.GetTransactionByIdAsync(request.TransferId, cancellationToken) is not null)
+        if (request is null || await transactionRepository.GetTransactionOfUserAsync(request.TransferId, request.UserId, cancellationToken) is not null)
         {
             return;
         }
@@ -60,7 +59,7 @@ public sealed class TransferRequestedHandler(TransactionService transactionServi
         {
             // A business failure (wrong account, low balance, ...) is final: retrying would fail again.
             // Make sure the customer still sees the transfer as failed in their history, and is told.
-            if (await transactionRepository.GetTransactionByIdAsync(request.TransferId, cancellationToken) is null)
+            if (await transactionRepository.GetTransactionOfUserAsync(request.TransferId, request.UserId, cancellationToken) is null)
             {
                 var referenceNumber = $"TXN{DateTime.UtcNow:yyyyMMddHHmmss}{Random.Shared.NextInt64(10_000_000_000, 99_999_999_999)}";
                 await transactionRepository.AddTransactionAsync(new BankTransaction

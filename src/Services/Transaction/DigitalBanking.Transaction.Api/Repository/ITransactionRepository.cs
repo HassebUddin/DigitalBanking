@@ -13,6 +13,7 @@ public interface ITransactionRepository
     Task SaveTransactionChangesAsync(CancellationToken cancellationToken);
     Task WaitForStandbyAsync(bool strict, CancellationToken cancellationToken);
     Task<BankTransaction?> GetTransactionByIdAsync(Guid transactionId, CancellationToken cancellationToken);
+    Task<BankTransaction?> GetTransactionOfUserAsync(Guid transactionId, Guid ownerUserId, CancellationToken cancellationToken);
     Task<IReadOnlyList<TransferSaga>> GetSagasToRecoverAsync(CancellationToken cancellationToken);
     Task<(List<BankTransaction> Items, long Total, string Strategy)> SearchTransactionsAsync(TransactionSearchRequest request, int page, int pageSize, CancellationToken cancellationToken);
     Task<IReadOnlyList<BankTransaction>> GetTransactionsAsync(Guid userId, bool isAdmin, IReadOnlyCollection<Guid> ownAccountIds, TransactionSearchRequest request, CancellationToken cancellationToken);

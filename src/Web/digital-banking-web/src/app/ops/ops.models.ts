@@ -385,6 +385,7 @@ export interface ClusterView {
   bankRebuilds: number;
   /** Writes a former primary accepted that never reached the new one, kept for reconciliation. */
   divergedRows: number;
+  walFiles: number;
 }
 
 export interface LedgerRegionCheck {

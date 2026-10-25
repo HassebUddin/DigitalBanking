@@ -1,0 +1,37 @@
+# kp province: its two database nodes, grouped as one project in Docker Desktop.
+# Which one is master (primary) and which is slave (replica) is decided by the admin coordinator and can switch.
+name: digitalbanking-kp
+
+services:
+  sql-kp-a:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: digitalbanking-sql-kp-a
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "768"
+    ports:
+      - "14343:1433"
+    volumes:
+      - node-a-data:/var/opt/mssql
+
+  sql-kp-b:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: digitalbanking-sql-kp-b
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "DigitalBank_2026!"
+      MSSQL_MEMORY_LIMIT_MB: "768"
+    ports:
+      - "14353:1433"
+    volumes:
+      - node-b-data:/var/opt/mssql
+
+# The data volumes created before the provinces were split into their own projects.
+volumes:
+  node-a-data:
+    external: true
+    name: digitalbanking_sql-kp-data
+  node-b-data:
+    external: true
+    name: digitalbanking_sql-kp-b-data

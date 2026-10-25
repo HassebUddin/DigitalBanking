@@ -1397,3 +1397,4 @@
 .ops-ui .copy-mark[data-state="down"] { background: rgba(240, 180, 60, 0.18); color: #f0b43c; }
 .ops-dialog.txn-dialog { max-height: calc(100vh - 2rem); overflow-y: auto; }
 .ops-dialog.txn-dialog .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }
+.ops-ui .wal-chip { display: inline-block; margin-top: 0.25rem; padding: 0.1rem 0.45rem; border-radius: 999px; background: rgba(240, 180, 60, 0.18); color: #f0b43c; font-size: 0.68rem; font-weight: 700; white-space: nowrap; }

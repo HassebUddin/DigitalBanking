@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 
 namespace DigitalBanking.BuildingBlocks.Regions;
@@ -11,6 +12,11 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
     where TContext : DbContext
 {
     private readonly Dictionary<string, TContext> contexts = new();
+
+    // A province database that failed is skipped by every request until a background check reaches it again (keyed by its current
+    // primary, so a failover is picked up at once). Without this, every search across provinces would wait for
+    // the connect timeout of a stopped province before answering.
+    private static readonly ConcurrentDictionary<string, DateTime> DownSince = new();
 
     public string? PinnedRegion { get; private set; }
 
@@ -61,6 +67,34 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         return found;
     }
 
+    // A user's row: their own province first, so another province being down does not matter. The others are
+    // searched (best effort) only when it is not there, e.g. data kept from before provinces were split.
+    public async Task<T?> FindForUserAsync<T>(Guid userId, Func<TContext, Task<T?>> query, CancellationToken cancellationToken) where T : class
+    {
+        var region = await directory.GetRegionAsync(userId, cancellationToken);
+        try
+        {
+            if (await FindInAsync(region, query) is { } found)
+            {
+                return found;
+            }
+        }
+        catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
+        {
+            await MarkDownAsync(region);
+            throw new Exceptions.ServiceUnavailableException($"The bank's database for {BankRegions.DisplayName(region)} is under maintenance right now. Please retry in a few minutes.");
+        }
+
+        try
+        {
+            return await FindAsync(query);
+        }
+        catch (Exceptions.ServiceUnavailableException)
+        {
+            return null;
+        }
+    }
+
     // The user's own province, pinned for the rest of this request.
     public async Task<TContext> ForUserAsync(Guid userId, CancellationToken cancellationToken)
     {
@@ -81,6 +115,12 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         var skipped = false;
         foreach (var region in SearchOrder())
         {
+            if (KnownDown(region))
+            {
+                skipped = true;
+                continue;
+            }
+
             T? found;
             try
             {
@@ -89,7 +129,7 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
             catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
             {
                 skipped = true;
-                await DropAsync(region);
+                await MarkDownAsync(region);
                 continue;
             }
 
@@ -110,6 +150,11 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
     {
         foreach (var region in SearchOrder())
         {
+            if (KnownDown(region))
+            {
+                continue;
+            }
+
             try
             {
                 if (await query(For(region)))
@@ -119,7 +164,7 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
             }
             catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
             {
-                await DropAsync(region);
+                await MarkDownAsync(region);
             }
         }
 
@@ -134,6 +179,12 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         var unavailable = 0;
         foreach (var region in BankRegions.All)
         {
+            if (KnownDown(region))
+            {
+                unavailable++;
+                continue;
+            }
+
             try
             {
                 rows.AddRange(await query(For(region)));
@@ -141,7 +192,7 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
             catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
             {
                 unavailable++;
-                await DropAsync(region);
+                await MarkDownAsync(region);
             }
         }
 
@@ -164,6 +215,11 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
         var needed = (page + 1) * pageSize;
         foreach (var region in BankRegions.All)
         {
+            if (KnownDown(region))
+            {
+                continue;
+            }
+
             try
             {
                 var query = newestFirstQuery(For(region));
@@ -172,11 +228,60 @@ public sealed class RegionalDb<TContext>(RegionalDatabaseOptions options, IUserR
             }
             catch (Exception exception) when (RegionErrors.IsUnavailable(exception))
             {
-                await DropAsync(region);
+                await MarkDownAsync(region);
             }
         }
 
         return (rows.OrderByDescending(createdAt).Skip(page * pageSize).Take(pageSize).ToList(), total);
+    }
+
+    private bool KnownDown(string region)
+    {
+        // Stays "down" until the background check reaches it again (no timeout), so no request ever has to wait
+        // for a stopped province's connect timeout, however long it stays down.
+        var connectionString = options.RegionConnectionString(region);
+        if (!DownSince.ContainsKey(connectionString))
+        {
+            return false;
+        }
+
+        // Requests keep skipping it, while one quick check in the background notices the moment it is back.
+        ProbeInBackground(connectionString);
+        return true;
+    }
+
+    private static readonly ConcurrentDictionary<string, DateTime> LastProbe = new();
+
+    private static void ProbeInBackground(string connectionString)
+    {
+        var now = DateTime.UtcNow;
+        if (LastProbe.TryGetValue(connectionString, out var last) && now - last < TimeSpan.FromSeconds(1.5)
+            || !LastProbe.TryAdd(connectionString, now) && !LastProbe.TryUpdate(connectionString, now, last))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await using var connection = new Microsoft.Data.SqlClient.SqlConnection(connectionString + "Connect Timeout=2;");
+                await connection.OpenAsync();
+                await using var command = new Microsoft.Data.SqlClient.SqlCommand("SELECT 1", connection) { CommandTimeout = 2 };
+                await command.ExecuteScalarAsync();
+                DownSince.TryRemove(connectionString, out _);
+            }
+            catch
+            {
+                // Still down: the requests keep skipping it.
+            }
+        });
+    }
+
+    private Task MarkDownAsync(string region)
+    {
+        DownSince[options.RegionConnectionString(region)] = DateTime.UtcNow;
+        return DropAsync(region);
     }
 
     // A context whose connection failed is not reused for the rest of the request.

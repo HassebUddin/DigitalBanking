@@ -86,8 +86,17 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         await transactionRepository.AddTransactionAsync(transaction, sourceAccount.UserId, cancellationToken);
         transactionRepository.AddTransferSaga(saga);
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
-        // The saga must survive a failover before any money moves for it.
-        await transactionRepository.WaitForStandbyAsync(strict: true, cancellationToken);
+        // The saga must survive a failover before any money moves for it. If the standby cannot confirm yet
+        // (e.g. it is just catching up after the province came back), no money has moved: the recovery job
+        // retries in a few seconds instead of waiting until the saga counts as abandoned (2 minutes).
+        try
+        {
+            await transactionRepository.WaitForStandbyAsync(strict: true, cancellationToken);
+        }
+        catch (ServiceUnavailableException)
+        {
+            return await DeferTransferAsync(transaction, saga, cancellationToken);
+        }
 
         if (TransferSagaMachine.NextAction(saga.State) == TransferSagaMachine.DebitSource)
         {
@@ -166,7 +175,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
         if (string.IsNullOrWhiteSpace(destinationNumber)) throw new ValidationException("Destination account number is required.");
 
         var transaction = new BankTransaction { Id = transactionId, AccountId = request.SourceAccountId, UserId = userId, TransactionType = TransactionTypes.Transfer, Amount = request.Amount, Status = TransactionStatuses.Pending, ReferenceNumber = $"TXN{DateTime.UtcNow:yyyyMMddHHmmss}{Random.Shared.NextInt64(10_000_000_000, 99_999_999_999)}", Description = request.Description.Trim(), CreatedAtUtc = DateTime.UtcNow };
-        var saga = new TransferSaga { Id = Guid.NewGuid(), TransactionId = transaction.Id, SourceAccountId = request.SourceAccountId, DestinationAccountId = Guid.Empty, DestinationAccountNumber = destinationNumber, Amount = request.Amount, State = TransferSagaStates.Started, RetryAfterUtc = DateTime.UtcNow.AddSeconds(5) };
+        var saga = new TransferSaga { Id = Guid.NewGuid(), TransactionId = transaction.Id, SourceAccountId = request.SourceAccountId, DestinationAccountId = Guid.Empty, DestinationAccountNumber = destinationNumber, Amount = request.Amount, State = TransferSagaStates.Started, RetryAfterUtc = DateTime.UtcNow.AddSeconds(2) };
         await transactionRepository.AddTransactionAsync(transaction, userId, cancellationToken);
         transactionRepository.AddTransferSaga(saga);
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
@@ -177,7 +186,7 @@ public sealed class TransactionService(ITransactionRepository transactionReposit
     // Hands an in-flight transfer to the recovery job, which retries it every few seconds.
     private async Task<TransactionResponse> DeferTransferAsync(BankTransaction transaction, TransferSaga saga, CancellationToken cancellationToken)
     {
-        saga.RetryAfterUtc = DateTime.UtcNow.AddSeconds(5);
+        saga.RetryAfterUtc = DateTime.UtcNow.AddSeconds(2);
         await transactionRepository.SaveTransactionChangesAsync(cancellationToken);
         await transactionRepository.WaitForStandbyAsync(strict: false, cancellationToken);
         return new TransactionResponse { Id = transaction.Id, AccountId = transaction.AccountId, CounterpartyAccountId = transaction.CounterpartyAccountId, TransactionType = transaction.TransactionType, Amount = transaction.Amount, Status = transaction.Status, ReferenceNumber = transaction.ReferenceNumber, Description = transaction.Description, CreatedAtUtc = transaction.CreatedAtUtc };
